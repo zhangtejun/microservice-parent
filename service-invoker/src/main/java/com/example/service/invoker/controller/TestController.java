@@ -1,5 +1,6 @@
 package com.example.service.invoker.controller;
 
+import com.example.service.invoker.service.ClientService;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,13 +24,26 @@ public class TestController {
     @Autowired
     private RestTemplate restTemplate;
 
-    @RequestMapping(value = "hello1", method = RequestMethod.GET)
+    @Autowired
+    private ClientService clientService;
+
+/*    @RequestMapping(value = "hello1", method = RequestMethod.GET)
     public Object index() {
         List<String> services = client.getServices();
         services.stream().forEach(System.out::println);
          Map map = new HashMap<>();
          map.put("aa","21321");
          map.put("bb", restTemplate.getForObject("http://service-provider:7000/hello",String.class));
+         return map;
+    }*/
+
+    @RequestMapping(value = "hello1", method = RequestMethod.GET)
+    public Object index() {
+        List<String> services = client.getServices();
+        services.stream().forEach(System.out::println);
+         Map map = new HashMap<>();
+         map.put("aa","21321");
+         map.put("bb", clientService.index());
          return map;
     }
 }
