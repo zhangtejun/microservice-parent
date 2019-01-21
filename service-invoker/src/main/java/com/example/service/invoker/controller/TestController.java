@@ -46,4 +46,8 @@ public class TestController {
          map.put("bb", clientService.index());
          return map;
     }
+
+    public static void main(String[] args) {
+        System.out.println(12390-2080-100-7*21-30*36);
+    }
 }
