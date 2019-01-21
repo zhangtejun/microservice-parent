@@ -83,3 +83,63 @@ public interface AnnotatedElement
 ![导图来自网络]({{ site.annotation | prepend: site.baseurl }})
 
 ##### 
+```java
+@AnnotationA(value = "aa",lValues = {1,2,3})
+public class AnnotationDemo extends AnnotationSub {
+    public static void main(String[] args) throws ClassNotFoundException {
+        Class<?> clazz = AnnotationDemo.class;
+        Annotation[] annotations =clazz.getAnnotations();//返回此元素上存在的所有注解，包括从父类继承的
+        System.out.println("an:"+ Arrays.toString(annotations));
+
+        Arrays.stream(annotations).forEach(System.out::println);
+
+        AnnotationA annotationA = clazz.getAnnotation(AnnotationA.class);//该元素如果存在指定类型的注解，则返回这些注解，否则返回 null。
+        System.out.println(annotationA);
+
+        Annotation[] annotations1 = clazz.getDeclaredAnnotations();//返回直接存在于此元素上的所有注解不包括继承
+        Arrays.stream(annotations1).forEach(System.out::println);
+
+        // Java 8中新增加的元注解@Repeatable，它表示在同一个位置重复相同的注解
+        // Java8中 ElementType 新增两个枚举成员，TYPE_PARAMETER 和 TYPE_USE,新增的TYPE_PARAMETER可以用于标注类型参数，
+        // 而TYPE_USE则可以用于标注任意类型(不包括class),TYPE_PARAMETER用来支持在Java的程序中做强类型检查.配合第三方插件工具,可以在编译的时候检测出runtimeerror
+    }
+
+}
+
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface AnnotationA {
+    // 1，默认是 public abstract
+    // 2, 同时可选择使用default提供默认值,public abstract String value() default "";
+    String value();
+    // 3, 元素数据类型,可以是所有基本类型（int,float,boolean,byte,double,char,long,short），String，Class，enum，Annotation，及其类型的数组
+    boolean hasNext() default false;
+    enum Status {RED,BLUE}
+    Class<?> testCase() default String.class;
+    long[] lValues();
+    AnnotationB annotationB() default @AnnotationB(value="AnnotationB",hasTrue=true);
+}
+
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+@Repeatable(AnnotationC.class)
+@Inherited
+public @interface AnnotationB {
+    boolean hasTrue() default false;
+    String value() default "";
+}
+
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+@Inherited
+public @interface AnnotationC {
+    AnnotationB [] value();
+}
+
+@AnnotationB("23")
+@AnnotationB("231")
+public class AnnotationSub {
+    //
+}
+
+```
