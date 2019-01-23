@@ -13,3 +13,46 @@ eureka:
 spring:
   application:
     name: service-invoker
+#
+feign:
+  compression:
+    request:
+      enabled: true # 开启请求压缩
+      mime-types: text/xml,application/xml,application/json # 配置压缩的MIME TYPE
+      min-request-size: 2048 # 配置压缩数据大小的下限
+    response:
+      enabled: true # 开启响应压缩
+  client: #*******************特定feign配置**********************
+    config:
+      service-provider:
+        connectTimeout: 5000 #连接超时时间
+        readTimeout: 5000 #读超时时间
+        loggerLevel: full #配置Feign的日志级别
+        #errorDecoder: com.example.SimpleErrorDecoder #feign错误解码器
+        #retryer: com.example.SimpleRetryer #配置重试 Spring Cloud Camden以及之后的版本中，Spring Cloud关闭了Feign的重试，而是使用Ribbon的重试。
+        #requestInterceptors: # 配置拦截器
+        #- com.example.FooRequestInterceptor
+        #- com.example.BarRequestInterceptor
+        decode404: false
+        #decoder: org.springframework.cloud.openfeign.support.ResponseEntityDecoder #feign解码器
+        #encoder: org.springframework.cloud.openfeign.support.SpringEncoder #feign编码器
+        #contract: com.example.SimpleContract #feign的Contract配置
+
+#***********如果想为所有的Feign Client都进行配置**************
+#1. @EnableFeignClients 注解上有个defaultConfiguration 属性，我们可以将默认配置写成一个类，然后用defaultConfiguration 来引用
+#   例如：@EnableFeignClients(defaultConfiguration = DefaultFeignConfiguration.class)
+#2. 如果你想配置所有的Feign Client，如下配置即可：
+#feign:
+#  client:
+#    config:
+#      default:
+#        connectTimeout: 5000
+#        readTimeout: 5000
+#        loggerLevel: basic
+#3. 如果你不小心又使用了Java代码配置Feign，同时又使用了配置属性配置Feign，那么使用配置属性的优先级更高,配置属性配置的方式将会覆盖Java代码配置。
+#4. 如果你想修改代码配置方式的优先级，可使用如下属性：feign.client.default-to-properties=false 。
+
+#FeignClient 开启日志，支持为每一个feign提供一个feign.logger实例,1,在主程序入口配置日志bean，或者通过带有@Configuration注解的类来配置。
+logging:
+  level:
+    com.example.service.invoker.service.ClientService: debug

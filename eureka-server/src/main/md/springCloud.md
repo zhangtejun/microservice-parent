@@ -1,0 +1,158 @@
+---
+layout: post
+title:  "springboot"
+date:   2019-01-22 11:35:34
+author: zhangtejun
+categories: SpringCloud
+---
+# springCloud
+#### 服务核心操作
+* 服务注册（register）
+* 服务下线（cancel）
+* 服务租约（renew）
+* 服务剔除（evict）
+
+LeaseManager是Eureka关于服务发现定义的写操作接口，LookupService是定义查询相关的操作方法，主要用于client。
+```java
+public interface LeaseManager<T> {
+    void register(T var1, int var2, boolean var3);// 注册实例服务信息
+    boolean cancel(String var1, String var2, boolean var3);//删除实例
+    boolean renew(String var1, String var2, boolean var3);//和eureka server 进行心跳等操作，维持租约
+    void evict();// 剔除租约过期的服务实例
+}
+
+public interface LookupService<T> {
+    Application getApplication(String var1);
+    Applications getApplications();
+    List<InstanceInfo> getInstancesById(String var1);
+    InstanceInfo getNextServerFromEureka(String var1, boolean var2);
+}
+```
+#### 服务注册
+* 服务实例如何注册到服务中心  
+* 服务如何从注册中心剔除
+* 服务实例的一致性如何保持
+
+#### 访问方式
+1. 各微服务以http接口的形式对外提供服务。
+2. 消费者调用时，底层通过http client的方式访问。
+3. JDK原生的UrlConnection,Apache的http client，Netty的异步http client，spring的RestTemplate，springCloud Open Feign 进行服务间调用。
+
+>Feign是什么？
+>>Feign 是一个声明式的 Web Service 客户端。它的出现使开发 Web Service 客户端变得很简单。使用 Feign 只需要创建一个接口加上对应的注解，
+>>比如：@FeignClient 注解。 Feign 有可插拔的注解，包括 Feign 注解和 JAX-RS 注解。Feign 也支持编码器和解码器，
+>>Spring Cloud Open Feign 对 Feign 进行增强支持 Spring MVC 注解，可以像 Spring Web 一样使用 HttpMessageConverters 等。
+>>
+> Feign 的特性
+>>1，可插拔的注解支持，包括 Feign 注解和AX-RS注解。  
+>>2，支持可插拔的 HTTP 编码器和解码器。  
+>>3，支持 Hystrix 和它的 Fallback。  
+>>4，支持 Ribbon 的负载均衡。  
+>>5，支持 HTTP 请求和响应的压缩。Feign 是一个声明式的 WebService 客户端，它的目的就是让 Web Service 调用更加简单。它整合了 Ribbon 和 Hystrix，从而不需要开发者针对 Feign 对其进行整合。Feign 还提供了 HTTP 请求的模板，通过编写简单的接口和注解，就可以定义好 HTTP 请求的参数、格式、地址等信息。Feign 会完全代理 HTTP 的请求，在使用过程中我们只需要依赖注入 Bean，然后调用对应的方法传递参数即可。  
+>>
+>使用
+>>1. 引入Feign依赖
+>>2. 启动类加入注解@EnableFeignClients 开启 Feign 扫描支持
+>>3. Feign 接口编写 @FeignClient(value = "service-provider")
+>>4. Controller注入@Resource/@Autowired等
+>>
+>@FeignClient 注解
+>>name：指定 Feign Client 的名称，如果项目使用了 Ribbon，name 属性会作为微服务的名称，用于服务发现。
+>>url：url 一般用于调试，手动指定 @FeignClient 调用的地址。
+>>decode404：当发生404错误时，如果该字段为 true，会调用 decoder 进行解码，否则抛出 FeignException。
+>>configuration：Feign 配置类，可以自定义 Feign 的 Encoder、Decoder、LogLevel、Contract。
+>>fallback：定义容错的处理类，当调用远程接口失败或超时时，会调用对应接口的容错逻辑，fallback 指定的类必须实现 @FeignClient 标记的接口。
+>>fallbackFactory：工厂类，用于生成 fallback 类示例，通过这个属性我们可以实现每个接口通用的容错逻辑，减少重复的代码。
+>>path：定义当前 FeignClient 的统一前缀。
+>>
+>>Feign 工作原理
+>>1.主程序入口添加 @EnableFeignClients 注解开启对 Feign Client 扫描加载处理。根据 Feign Client 的开发规范，定义接口并加 @FeignClients 注解
+>>当程序启动时，会进行包扫描，扫描所有 @FeignClients 的注解的类，并将这些信息注入 Spring IOC 容器中。当定义的 Feign 接口中的方法被调用时，
+>>通过JDK的代理的方式，来生成具体的 RequestTemplate。当生成代理时，Feign 会为每个接口方法创建一个 RequetTemplate 对象，该对象封装了 HTTP 请求需要的全部信息，如请求参数名、请求方法等信息都是在这个过程中确定的。
+>>然后由 RequestTemplate 生成 Request，然后把 Request 交给 Client 去处理，这里指的 Client 可以是 JDK 原生的 URLConnection、Apache 的 Http Client 也可以是 Okhttp。
+>>最后 Client 被封装到 LoadBalanceclient 类，这个类结合 Ribbon 负载均衡发起服务之间的调用。
+>>
+>>Feign开启GZIP,因为传输的数据格式都已经转换为了二进制，如果不做其他更改的话，返回将会是乱码,需要把返回值修改为 ResponseEntity<byte[]>。
+```yaml
+feign:  
+    compression:  
+      request:  
+        enabled: true # 开启请求压缩  
+        mime-types: text/xml,application/xml,application/json # 配置压缩的MIME TYPE  
+        min-request-size: 2048 # 配置压缩数据大小的下限  
+      response:  
+        enabled: true # 开启响应压缩 
+```
+>
+>>w
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+

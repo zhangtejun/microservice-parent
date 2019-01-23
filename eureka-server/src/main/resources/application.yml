@@ -7,5 +7,9 @@ eureka:
   client:
     register-with-eureka: false
     fetch-registry: false
-    service-url.defaultZone: http://127.0.0.1:${server.port}/eureka/
     #service-url.defaultZone: http://${eureka.instance.hostname}:${server.port}/eureka
+    service-url:
+      zone1: http://${eureka.instance.hostname}:9000/eureka,http://${eureka.instance.hostname}:9001/eureka
+      zone2: http://${eureka.instance.hostname}:9002/eureka,http://${eureka.instance.hostname}:9003/eureka
+    availability-zones:
+      region-east: zone1,zone2
