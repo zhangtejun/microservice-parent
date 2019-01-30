@@ -84,9 +84,98 @@ feign:
         enabled: true # 开启响应压缩 
 ```
 >
->>w
+>Feign Client
+>>Feign在默认情况下使用jdk原生的URLConnection发送http请求，没有连接池，对每个地址保存一个长连接。
+>>调用优化：使用Apache的client替换默认的HttpClient,来支持连接池，超时时间等。
+>>1. HTTP client替换Feign默认Client,第一步增加http依赖，然后增加yml配置
+```
+<!-- 使用Apache HttpClient替换Feign原生httpclient -->
+<dependency>
+    <groupId>org.apache.httpcomponents</groupId>
+    <artifactId>httpclient</artifactId>
+</dependency>
+<dependency>
+    <groupId>com.netflix.feign</groupId>
+    <artifactId>feign-httpclient</artifactId>
+    <version>8.17.0</version>
+</dependency>
+
+feign:
+  httpclient:
+    enabled: true
+
+```
+>>2. okhttp替换默认client,first增加依赖，然后yml配置okhttp,最后创建OkHttpClient对象
+```
+<dependency>
+    <groupId>io.github.openfeign</groupId>
+    <artifactId>feign-okhttp</artifactId>
+</dependency>
+feign:
+  okhttp:
+    enabled: true 
+```
+>
+>>Feign返回图片处理流，一般图片返回为字节数组，在Feign中把流转为字节数组进行传递，因Controller层不能返回byte
+>>需将Feign的返回改为Response。
+>
+>Feign 调用传递Token
+>>在调用Feign时，向请求头中添加Token，可以通过实现Feign提供的一个RequestInterceptor接口来完成。
+
+#### Ribbon
+>Ribbon是一个客户端负载均衡器，它赋予用于一些支配http和tcp行为的能力。feign和zuul默认已经集成ribbon。
+>>1. 引入依赖`spring-cloud-starter-netflix-ribbon`
+>>2. 注入RestTemplate
+>>3. 添加注解@LoadBalance
+>>4. 启动java -jar demo.jar --server.port=9000
+>
+>Ribbon负载均衡策略
+>>1. 全局修改默认策略，需要增加一个配置类。
+```java
+@org.springframework.context.annotation.Configuration
+public class Configuration {
+    @Bean
+    public IRule ribbonRule()
+    {
+        return new RandomRule();
+    }
+}
+```
+>>1. 基于注解的策略配置，可以针对某一个源服务进行特有策略设置。需要对全局设置的代码进行修改
+```java
+@Configuration
+@AviodScan
+public class ProviderConfiguration {
+   @Autowired
+   IClientConfig config;
+   @Bean
+    public IRule ribbonRule(IClientConfig config)
+    {
+        return new RandomRule();
+    }
+}
+```
+>>@AviodScan 自定义注解，用于注解扫描排除java文件。
+>>IClientConfig是针对客户端的配置管理器，使用@RibbonClient或者@RibbonClients在启动类上配置对一个或者多个源服务进行制定复制均衡策略。
+```java
+@RibbonClient(name="service-provider",configuration = ProviderConfiguration.class)
+@ComponentScan(excludeFilters = {@ComponentScan.Filter(type = FilterType.ANNOTATION,value = {AviodScan.class})})
+public class ServiceInvokerApplication {}
 
 
+// 或者指定多个
+@RibbonClients(value = {
+        @RibbonClient(name="service-provider",configuration = ProviderConfiguration.class),
+        @RibbonClient(name="service-provider-B",configuration = ProviderConfiguration.class)
+})
+@ComponentScan(excludeFilters = {@ComponentScan.Filter(type = FilterType.ANNOTATION,value = {AviodScan.class})})
+public class ServiceInvokerApplication {}
+```
+>>3. 基于配置文件的策略
+>>语法格式为<client-name>.ribbon.*
+```yaml
+service-provider.
+```
 
 
 

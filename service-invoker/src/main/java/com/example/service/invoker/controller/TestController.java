@@ -27,17 +27,17 @@ public class TestController {
     @Autowired
     private ClientService clientService;
 
-/*    @RequestMapping(value = "hello1", method = RequestMethod.GET)
-    public Object index() {
+    @RequestMapping(value = "testRibbon", method = RequestMethod.GET)
+    public Object index2() {
         List<String> services = client.getServices();
         services.stream().forEach(System.out::println);
          Map map = new HashMap<>();
-         map.put("aa","21321");
-         map.put("bb", restTemplate.getForObject("http://service-provider:7000/hello",String.class));
+         map.put("aa","testRibbon");
+         map.put("bb", restTemplate.getForObject("http://service-provider:7000/testRibbon",String.class));
          return map;
-    }*/
+    }
 
-    @RequestMapping(value = "hello1", method = RequestMethod.GET)
+    @RequestMapping(value = "hello", method = RequestMethod.GET)
     public Object index() {
         List<String> services = client.getServices();
         services.stream().forEach(System.out::println);
@@ -45,6 +45,15 @@ public class TestController {
          map.put("aa","21321");
          map.put("bb", clientService.index());
          return map;
+    }
+    @RequestMapping(value = "hello1", method = RequestMethod.GET)
+    public Object index1() {
+        List<String> services = client.getServices();
+        services.stream().forEach(System.out::println);
+        Map map = new HashMap<>();
+        map.put("aa","21321");
+        map.put("bb", clientService.index1());
+        return map;
     }
 
     public static void main(String[] args) {

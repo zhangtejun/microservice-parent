@@ -1,8 +1,8 @@
 package com.example.service.invoker.service;
 
 import org.springframework.cloud.openfeign.FeignClient;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 
 /**
  * 绑定服务 service-provider
@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.RequestMethod;
 @FeignClient(value = "service-provider")
 public interface ClientService {
 
-    @RequestMapping(value = "hello", method = RequestMethod.GET)
+    @GetMapping(value = "hello")
     String index();
+    @PostMapping(value = "hello1")
+    String index1();
 }

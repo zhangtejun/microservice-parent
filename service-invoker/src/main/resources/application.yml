@@ -37,6 +37,10 @@ feign:
         #decoder: org.springframework.cloud.openfeign.support.ResponseEntityDecoder #feign解码器
         #encoder: org.springframework.cloud.openfeign.support.SpringEncoder #feign编码器
         #contract: com.example.SimpleContract #feign的Contract配置
+  httpclient:
+    enabled: false
+  okhttp:
+    enabled: true
 
 #***********如果想为所有的Feign Client都进行配置**************
 #1. @EnableFeignClients 注解上有个defaultConfiguration 属性，我们可以将默认配置写成一个类，然后用defaultConfiguration 来引用
@@ -56,3 +60,7 @@ feign:
 logging:
   level:
     com.example.service.invoker.service.ClientService: debug
+
+service-provider:
+  ribbon:
+    NFLoadBalancerRuleClassName: com.netflix.loadbalancer.RoundRobinRule
