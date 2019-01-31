@@ -174,17 +174,318 @@ public class ServiceInvokerApplication {}
 >>3. 基于配置文件的策略
 >>语法格式为<client-name>.ribbon.*
 ```yaml
-service-provider.
+service-provider:
+  ribbon:
+    NFLoadBalancerRuleClassName: com.netflix.loadbalancer.RoundRobinRule
 ```
+>ribbon饥饿加载
+>>ribbon在进行客户端负载均衡时，并不是启动时加载上下文，而是在实际请求的时候才会去创建。可以通过在配置文件中指定客户端的名称来，指定Ribbon开启饥饿加载。
+```yaml
+ribbon:
+  eager-load:
+    enabled: true
+    clients: service-provider,service-provider-b
+```
+>Ribbon脱离Eureka使用
+>>默认情况下ribbon客户端从Eureka注册中心读取服务列表，来实现动态负载均衡。在一种情况下，不推荐默认方式。多人共用的Eureka公共注册中心，容易产生服务入侵。
+>>Ribbon脱离Eureka使用,需要在配置文件中禁用Eureka.
+```yaml
+# 禁用
+ribbon:
+  eureka:
+    enabled: false
+    
+# 然后设置源服务地址列表
+client:
+  eureka:
+    listOfServers: http://localhost:7000/,http://localhost:7001/
+```
+>Ribbon原理
+>>使用ribbon来进行负载均衡，基本使用方式都需要注入一个RestTemplate的bean,并使用@LoadBalanced使其具备负载均衡能力。
+```java
+/**
+ * Annotation to mark a RestTemplate bean to be configured to use a LoadBalancerClient
+ * @author Spencer Gibb
+ */
+@Target({ElementType.FIELD, ElementType.PARAMETER, ElementType.METHOD})
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+@Inherited
+@Qualifier
+public @interface LoadBalanced {
+}
+```
+>>1. 标记一个RestTemplate来使用LoadBalancerClient。
+>>2. LoadBalancerClient 扩展至 ServiceInstanceChooser
+```java
+public interface LoadBalancerClient extends ServiceInstanceChooser {
 
+	/**
+	 * execute request using a ServiceInstance from the LoadBalancer for the specified service
+	 * @param serviceId the service id to look up the LoadBalancer
+	 * @param request allows implementations to execute pre and post actions such as
+	 * incrementing metrics
+	 * @return the result of the LoadBalancerRequest callback on the selected ServiceInstance
+	 * 
+	 * 使用来自LoadBalancer的ServiceInstance为指定服务执行请求
+	 */
+	<T> T execute(String serviceId, LoadBalancerRequest<T> request) throws IOException;
 
+	/**
+	 * execute request using a ServiceInstance from the LoadBalancer for the specified service
+	 * @param serviceId the service id to look up the LoadBalancer
+	 * @param serviceInstance the service to execute the request to
+	 * @param request allows implementations to execute pre and post actions such as
+	 * incrementing metrics
+	 * @return the result of the LoadBalancerRequest callback on the selected ServiceInstance
+	 * 
+	 * 上一个方法的重载，细节的实现
+	 */
+	<T> T execute(String serviceId, ServiceInstance serviceInstance, LoadBalancerRequest<T> request) throws IOException;
 
+	/**
+	 * Create a proper URI with a real host and port for systems to utilize.
+	 * Some systems use a URI with the logical serivce name as the host,
+	 * such as http://myservice/path/to/service.  This will replace the
+	 * service name with the host:port from the ServiceInstance.
+	 * @param instance
+	 * @param original a URI with the host as a logical service name
+	 * @return a reconstructed URI
+	 * 使用主机的ip和端口构建特定的URI供Ribbon内部使用
+	 */
+	URI reconstructURI(ServiceInstance instance, URI original);
+}
 
+public interface ServiceInstanceChooser {
 
+    /**
+     * Choose a ServiceInstance from the LoadBalancer for the specified service
+     * @param serviceId the service id to look up the LoadBalancer
+     * @return a ServiceInstance that matches the serviceId
+     */
+    ServiceInstance choose(String serviceId);// 根据serviceId，结合负载均衡器选择一个服务实例
+}
 
+```
+>>Ribbon核心配置类LoadBalancerAutoConfiguration
+>>@ConditionalOnBean（仅仅在当前上下文中存在某个对象时，才会实例化一个Bean）
+>>@ConditionalOnClass（某个class位于类路径上，才会实例化一个Bean）
+>>@ConditionalOnExpression（当表达式为true的时候，才会实例化一个Bean）
+>>@ConditionalOnMissingBean（仅仅在当前上下文中不存在某个对象时，才会实例化一个Bean）
+>>@ConditionalOnMissingClass（某个class类路径上不存在的时候，才会实例化一个Bean）
+>>@ConditionalOnNotWebApplication（不是web应用）
+```java
+@Configuration
+@ConditionalOnClass(RestTemplate.class)
+@ConditionalOnBean(LoadBalancerClient.class)
+@EnableConfigurationProperties(LoadBalancerRetryProperties.class)
+public class LoadBalancerAutoConfiguration {
 
+	@LoadBalanced
+	@Autowired(required = false)
+	private List<RestTemplate> restTemplates = Collections.emptyList();
 
+	@Bean
+	public SmartInitializingSingleton loadBalancedRestTemplateInitializerDeprecated(
+			final ObjectProvider<List<RestTemplateCustomizer>> restTemplateCustomizers) {
+		return () -> restTemplateCustomizers.ifAvailable(customizers -> {
+            for (RestTemplate restTemplate : LoadBalancerAutoConfiguration.this.restTemplates) {
+                for (RestTemplateCustomizer customizer : customizers) {
+                    customizer.customize(restTemplate);
+                }
+            }
+        });
+	}
 
+	@Autowired(required = false)
+	private List<LoadBalancerRequestTransformer> transformers = Collections.emptyList();
+
+    /**
+    * 创建LoadBalancerRequest供LoadBalancerInterceptor使用
+    */
+	@Bean
+	@ConditionalOnMissingBean
+	public LoadBalancerRequestFactory loadBalancerRequestFactory(
+			LoadBalancerClient loadBalancerClient) {
+		return new LoadBalancerRequestFactory(loadBalancerClient, transformers);
+	}
+
+    /**
+    * LoadBalancerInterceptorConfig维护LoadBalancerInterceptor和RestTemplateCustomizer的实例。
+    * LoadBalancerInterceptor拦截每一个HTTP请求，将其绑定至负载均衡的生命周期。
+    * RestTemplateCustomizer为每一个restTemplate绑定LoadBalancerInterceptor拦截器。
+    * 
+    */
+	@Configuration
+	@ConditionalOnMissingClass("org.springframework.retry.support.RetryTemplate")
+	static class LoadBalancerInterceptorConfig {
+		@Bean
+		public LoadBalancerInterceptor ribbonInterceptor(
+				LoadBalancerClient loadBalancerClient,
+				LoadBalancerRequestFactory requestFactory) {
+			return new LoadBalancerInterceptor(loadBalancerClient, requestFactory);
+		}
+
+		@Bean
+		@ConditionalOnMissingBean
+		public RestTemplateCustomizer restTemplateCustomizer(
+				final LoadBalancerInterceptor loadBalancerInterceptor) {
+			return restTemplate -> {
+                List<ClientHttpRequestInterceptor> list = new ArrayList<>(
+                        restTemplate.getInterceptors());
+                list.add(loadBalancerInterceptor);
+                restTemplate.setInterceptors(list);
+            };
+		}
+	}
+
+	@Configuration
+	@ConditionalOnClass(RetryTemplate.class)
+	public static class RetryAutoConfiguration {
+
+		@Bean
+		@ConditionalOnMissingBean
+		public LoadBalancedRetryFactory loadBalancedRetryFactory() {
+			return new LoadBalancedRetryFactory() {};
+		}
+	}
+
+	@Configuration
+	@ConditionalOnClass(RetryTemplate.class)
+	public static class RetryInterceptorAutoConfiguration {
+		@Bean
+		@ConditionalOnMissingBean
+		public RetryLoadBalancerInterceptor ribbonInterceptor(
+				LoadBalancerClient loadBalancerClient, LoadBalancerRetryProperties properties,
+				LoadBalancerRequestFactory requestFactory,
+				LoadBalancedRetryFactory loadBalancedRetryFactory) {
+			return new RetryLoadBalancerInterceptor(loadBalancerClient, properties,
+					requestFactory, loadBalancedRetryFactory);
+		}
+
+		@Bean
+		@ConditionalOnMissingBean
+		public RestTemplateCustomizer restTemplateCustomizer(
+				final RetryLoadBalancerInterceptor loadBalancerInterceptor) {
+			return restTemplate -> {
+                List<ClientHttpRequestInterceptor> list = new ArrayList<>(
+                        restTemplate.getInterceptors());
+                list.add(loadBalancerInterceptor);
+                restTemplate.setInterceptors(list);
+            };
+		}
+	}
+}
+```
+>>该配置加载的条件为：1.当前上下文环境必须有RestTemplate实例，2.该上下文环境必须初始化了LoadBalancerClient的实现类。
+>
+```java
+/**
+* ClientHttpRequestInterceptor是spring维护的拦截器。
+*/
+public class LoadBalancerInterceptor implements ClientHttpRequestInterceptor {
+
+	private LoadBalancerClient loadBalancer;// LoadBalancerClient该接口仅一个实现类RibbonLoadBalancerClient
+	private LoadBalancerRequestFactory requestFactory;
+
+	public LoadBalancerInterceptor(LoadBalancerClient loadBalancer, LoadBalancerRequestFactory requestFactory) {
+		this.loadBalancer = loadBalancer;
+		this.requestFactory = requestFactory;
+	}
+
+	public LoadBalancerInterceptor(LoadBalancerClient loadBalancer) {
+		// for backwards compatibility
+		this(loadBalancer, new LoadBalancerRequestFactory(loadBalancer));
+	}
+
+    /**
+    * 在RestTemplate中使用的URI为http://myservice/path/to/service
+    * getHost--->myservice
+    */
+	@Override
+	public ClientHttpResponse intercept(final HttpRequest request, final byte[] body,
+			final ClientHttpRequestExecution execution) throws IOException {
+		final URI originalUri = request.getURI();
+		String serviceName = originalUri.getHost();
+		Assert.state(serviceName != null, "Request URI does not contain a valid hostname: " + originalUri);
+		return this.loadBalancer.execute(serviceName, requestFactory.createRequest(request, body, execution));
+	}
+}
+```
+>LoadBalancerClient该接口仅一个实现类RibbonLoadBalancerClient
+```java
+public class RibbonLoadBalancerClient implements LoadBalancerClient {
+    
+    @Override
+    	public <T> T execute(String serviceId, LoadBalancerRequest<T> request) throws IOException {
+            //1. 得到一个ILoadBalancer
+    		ILoadBalancer loadBalancer = getLoadBalancer(serviceId);
+    		//2. 由ILoadBalancer得到一个Server，该处就是发生负载均衡的地方。
+    		Server server = getServer(loadBalancer);
+    		if (server == null) {
+    			throw new IllegalStateException("No instances available for " + serviceId);
+    		}
+    		RibbonServer ribbonServer = new RibbonServer(serviceId, server, isSecure(server,
+    				serviceId), serverIntrospector(serviceId).getMetadata(server));
+    
+    		return execute(serviceId, ribbonServer, request);
+    	}
+    
+    	@Override
+    	public <T> T execute(String serviceId, ServiceInstance serviceInstance, LoadBalancerRequest<T> request) throws IOException {
+    		Server server = null;
+    		if(serviceInstance instanceof RibbonServer) {
+    			server = ((RibbonServer)serviceInstance).getServer();
+    		}
+    		if (server == null) {
+    			throw new IllegalStateException("No instances available for " + serviceId);
+    		}
+    
+    		RibbonLoadBalancerContext context = this.clientFactory
+    				.getLoadBalancerContext(serviceId);
+    		RibbonStatsRecorder statsRecorder = new RibbonStatsRecorder(context, server);
+    
+    		try {
+    			T returnVal = request.apply(serviceInstance);
+    			statsRecorder.recordStats(returnVal);
+    			return returnVal;
+    		}
+    		// catch IOException and rethrow so RestTemplate behaves correctly
+    		catch (IOException ex) {
+    			statsRecorder.recordStats(ex);
+    			throw ex;
+    		}
+    		catch (Exception ex) {
+    			statsRecorder.recordStats(ex);
+    			ReflectionUtils.rethrowRuntimeException(ex);
+    		}
+    		return null;
+    	}
+        protected Server getServer(ILoadBalancer loadBalancer) {
+            if (loadBalancer == null) {
+                return null;
+            }
+            return loadBalancer.chooseServer("default"); // TODO: better handling of key
+        }
+        public Server chooseServer(Object key) {
+            if (counter == null) {
+                counter = createCounter();
+            }
+            counter.increment();
+            if (rule == null) {
+                return null;
+            } else {
+                try {
+                    // rule 就是IRule，即负载均衡选择
+                    return rule.choose(key);
+                } catch (Exception e) {
+                    logger.warn("LoadBalancer [{}]:  Error choosing server for key {}", name, key, e);
+                    return null;
+                }
+            }
+        }
+}
+```
 
 
 

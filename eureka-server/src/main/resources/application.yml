@@ -14,3 +14,4 @@ eureka:
     availability-zones:
       region-east: zone1,zone2
 
+
