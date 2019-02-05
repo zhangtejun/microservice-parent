@@ -487,6 +487,31 @@ public class RibbonLoadBalancerClient implements LoadBalancerClient {
 }
 ```
 
+>hystrix
+>>hystrix是针对分布式系统`容错处理`的开源组件，hystrix是一个延迟和容错库，旨在隔离远程系统，服务和第三方库，阻止级联故障，在复杂的分布式系统中实现故障恢复。
+>Hystrix被设计的目标是:
+>>1. 对通过第三方客户端库访问的依赖项（通常是通过网络）的延迟和故障进行保护和控制。
+>>2. 在一个复杂的分布式系统中阻止级联故障。
+>>3. 快速失败，快速恢复。
+>>4. 在合理的情况下回退和优雅地降级。
+>>5. 启用近实时监控、警报和操作控制。
+>>hystrix底层大量使用Rxjava  --------> angular RxJS
+
+>使用
+>>1. 加入依赖
+
+```
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-netflix-hystrix</artifactId>
+</dependency>
+```
+>>2. 启动断路器模式,在启动类上添加@EnableHystrix
+
+>Feign中使用断路器
+>>在Feign中，默认是自带hystrix功能的，在老版本中是默认开启的，后续版本中已默认关闭，需要在配置文件中打开。
+>>1. 使用@FeignClient定义接口，配置降级回退类ClientServiceFallBack
+>>2. 启用hystrix，feign-hystrix-enabled=true
 
 
 

@@ -1,6 +1,7 @@
 package com.example.service.invoker.controller;
 
 import com.example.service.invoker.service.ClientService;
+import com.example.service.invoker.service.UserService;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -8,6 +9,7 @@ import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
 
@@ -26,6 +28,9 @@ public class TestController {
 
     @Autowired
     private ClientService clientService;
+
+    @Autowired
+    private UserService userService;
 
     @RequestMapping(value = "testRibbon", method = RequestMethod.GET)
     public Object index2() {
@@ -55,6 +60,17 @@ public class TestController {
         map.put("bb", clientService.index1());
         return map;
     }
+
+    @RequestMapping(value = "testHystrix", method = RequestMethod.GET)
+    public Object testHystrix(@RequestParam("userName") String userName ) throws Exception {
+        List<String> services = client.getServices();
+        services.stream().forEach(System.out::println);
+        Map map = new HashMap<>();
+        map.put("aa","testHystrix");
+        map.put("bb", userService.getUser(userName));
+        return map;
+    }
+
 
     public static void main(String[] args) {
         System.out.println(12390-2080-100-7*21-30*36);
