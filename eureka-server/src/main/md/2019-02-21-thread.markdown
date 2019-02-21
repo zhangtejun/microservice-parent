@@ -1,0 +1,52 @@
+---
+layout: post
+title:  "thread"
+date:   2018-02-18 10:53:02
+author: zhangtejun
+categories: java
+---
+##### thread State状态 6个枚举
+```java
+public enum State {
+        NEW,// 新创建了一个线程对象，但还没有调用start()方法
+        RUNNABLE,// 线程对象被创建后，其它线程调用了该对象的start()方法，从而来启动该线程。
+        BLOCKED,// 阻塞状态是线程因为某种原因放弃CPU使用权，暂时停止运行
+        WAITING,// 该状态的线程需要等待其他线程做出一些特定动作（通知或中断）
+        TIMED_WAITING,// 超时等待,该状态不同于WAITING，它可以在指定的时间后自行返回
+        TERMINATED //线程已经执行完毕
+    }
+```
+##### 停止线程
+1.  使用退出标志，使线程正常退出，也就是当run方法完成后线程终止。 
+2.  使用stop方法强行终止线程（这个方法不推荐使用，都是已过时的方法，因为stop和suspend、resume一样，也可能发生不可预料的结果）。 
+3.  使用interrupt方法中断线程
+```java
+public static boolean interrupted() {...};// 当前线程是否已经中断，该方法具有清除状态功能
+public boolean isInterrupted() {};// 线程是否已中断
+```
+```java
+public class Tets1 {
+    public static void main(String[] args) throws InterruptedException {
+            Runnable r = () -> {for (int i=0 ;i<1000;i++){
+                System.out.println("i="+i);}
+            };
+            Thread t = new Thread(r);
+            t.start();
+            Thread.sleep(1000);
+            t.interrupt();// 虽然是在t对象上调用interrupt方法，
+            System.out.println("是否停止1 ： "+t.isInterrupted());// false
+            System.out.println("是否停止2 ： "+t.isInterrupted());// false 当前线程为main,它未中断。
+        }
+    
+        @Test
+        public void t1(){
+            Thread.currentThread().interrupt();
+            System.out.println("是否停止1 ： "+Thread.interrupted());// true  interrupted判断当前线程是否已是停止状态，该方法具有清除状态功能
+            System.out.println("是否停止2 ： "+Thread.interrupted());// false
+        }
+ }
+```
+调用stop方法时会抛出`java.lang.ThreadDeath`异常，通常情况下该异常不需要显示捕获。该异常继承至Error。
+该方法已被废弃，原因为：强制停止线程有可能导致一些清理工作无法完成，如果对锁定对象进行锁的释放，可能会出现数据得不到同步处理，导致数据不一致。
+
+##### 暂停线程

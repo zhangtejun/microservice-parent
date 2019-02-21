@@ -1,0 +1,258 @@
+---
+layout: post
+title:  "java8"
+date:   2018-02-18 10:53:02
+author: zhangtejun
+categories: java
+---
+##### Java 8
+*  Stream API
+*  向方法传递代码的技巧
+*  接口中的默认方法
+Java 8是在2014年3月发布,Java 8提供了一个新的API（称为“流”，Stream），它支持许多处理数据的并行操作，其思路
+和在数据库查询语言中的思路类似——用更高级的方式表达想要的东西，而由“实现”（在这里是Streams库）来选择最佳
+低级执行机制。这样就可以避免用synchronized编写代码，这一代码不仅容易出错，而且在多核CPU上执行所需的成本也比你想象的要高。
+
+##### 默认方法
+Java 8中加入默认方法主要是为了支持库设计师，让他们能够写出更容易改进的接口。给接口设计者提供了一个扩充接口的方式，而不会破坏现有的代码。Java 8在接口声明
+中使用新的default关键字来表示这一点。
+
+
+##### Comparator与Comparable用法与区别
+* Comparable  
+1. 实现Comparable，重写compareTo方法。
+```java
+@Data
+public class Apple implements Comparable<Apple>{
+    private String color;
+    private int weigth;
+
+    Apple(String color, int weigth){
+        this.color= color;
+        this.weigth = weigth;
+    }
+    public static boolean isGreenApple(Apple apple) {
+        return "green".equals(apple.getColor());
+    }
+    public static boolean isHeavyApple(Apple apple) {
+        return apple.getWeigth() > 150;
+    }
+
+    @Override
+    public int compareTo(Apple o) {
+        return this.getColor().compareTo(o.getColor());
+    }
+}
+/**
+* // inventory  List<Apple>
+* Collections.sort(inventory); // inventory.sort(Apple::compareTo); // jdk 1.8
+* inventory.forEach(System.out::println);
+**/
+```
+也就是说同一个类的对象之间如果要进行比较，需要实现Comparable接口，并且实现compareTo方法。比较的时候就会按照这个规则来进行比较。
+
+* Comparator  
+1. 实现Comparator，重写compare方法。
+```java
+class ComparatorTest implements Comparator<Banana> {
+
+    @Override
+    public int compare(Banana o1, Banana o2) {
+        return o1.getColor().compareTo(o2.getColor());
+    }
+}
+
+
+List<Banana> list = Arrays.asList(new Banana("G",12),new Banana("R",123),new Banana("G",20));
+Collections.sort(list,new ComparatorTest());// list.sort(new ComparatorTest());
+// Collections.sort(list,new ComparatorTest2()); // 另一个比较规则
+list.forEach(System.out::println);
+```
+在不修改原实体类的情况下，可以通过实现多个Comparator来实现多个比较规则。通过Comparator，我们可以自定义比较规则，
+针对对象的属性或者字段等来进行比较，而Comparable就实现不了，因为它的compareTo方法只能有一种比较规则。
+
+* 使用匿名类来代替单独的实现类。将 `Collections.sort(list, new NameComparator());`：
+```java
+Collections.sort(list, new Comparator<Banana>() {
+    @Override
+    public int compare(Banana o1, Banana o2) {
+        return o1.getColor().compareTo(o2.getColor());
+    }
+});
+```
+* 借助JDK1.8的lambda表达式：
+```java
+Collections.sort(list, (o1, o2) -> o1.getColor().compareTo(o2.getColor()));
+```
+* 借助JDK1.8中Comparator接口中的新的方法comparing
+```java
+Collections.sort(list, Comparator.comparing(Banana::getColor));
+```
+
+>reversed
+>>返回逆序比较的比较器，底层直接使用Collections的reverseOrder来实现。
+```java
+default Comparator<T> reversed() {
+    return Collections.reverseOrder(this);
+}
+```
+>thenComparing 
+>>多条件排序 ,该方法有多个重载
+```java
+inventory.sort(Comparator.comparing(Apple::getColor).thenComparing(Apple::getWeigth));
+```
+>naturalOrder
+>>返回自然排序的比较器,reverseOrder恰好和naturalOrder相反。
+```java
+Collections.sort(list, Comparator.naturalOrder());
+```
+>nullsFirst和nullsLast方法
+>>如果排序的字段为null的情况下这条记录怎么排序? nullsFirst是说将这条记录排在最前面，而nullsLast是说将这条记录排序在最后面。
+>>如果多个key都为null的话，那将无法保证这几个对象的排序。
+```java
+// 按照color进行自然顺序排列，将key为null的排再最前面
+Comparator<Banana> comparator = Comparator.comparing(Banana::getColor,Comparator.nullsFirst(Comparator.naturalOrder()));
+list.sort(comparator);
+```
+
+##### 函数式接口
+一言以蔽之，函数式接口就是只定义一个抽象方法的接口。接口现在还可以拥有默认方法（即在类没有对方法进行实现时，
+其主体为方法提供默认实现的方法）。哪怕有很多默认方法，只要接口只定义了一个抽象方法，它就仍然是一个函数式接口。
+>函数描述符
+>>函数式接口的抽象方法的签名基本上就是Lambda表达式的签名。我们将这种抽象方法叫作
+函数描述符。例如，Runnable接口可以看作一个什么也不接受什么也不返回（void）的函数的
+签名，因为它只有一个叫作run的抽象方法，这个方法什么也不接受，什么也不返回（void）。
+
+>使用局部变量
+>>Lambda表达式也允许使用自由变量（不是参数，而是在外层作用域中定义的变量），就像匿名类一样。 它们被
+称作捕获Lambda。
+例如，下面的Lambda捕获了portNumber变量：
+```java
+    int portNumber = 1337;
+    Runnable r = () -> System.out.println(portNumber);
+```
+>>Lambda可以没有限制地捕获（也就是在其主体中引用）实例变量和静态变量。但局部变量必须显式声明为final，
+或事实上是final。换句话说，Lambda表达式只能捕获指派给它们的局部变量一次。（注：捕获
+实例变量可以被看作捕获最终局部变量this。） 例如，下面的代码无法编译，因为portNumber
+变量被赋值两次：
+```java
+    int portNumber = 1337;
+    Runnable r = () -> System.out.println(portNumber);
+    portNumber = 31337; 
+```
+>>对局部变量的限制,为什么局部变量有这些限制?
+>>第一，实例变量和局部变量背后的实现有一个关键不同。实例变量都存储在堆中，而局部变量则保存在栈上。如果Lambda可以直接访问局
+部变量，而且Lambda是在一个线程中使用的，则使用Lambda的线程，可能会在分配该变量的线
+程将这个变量收回之后，去访问该变量。因此，Java在访问自由局部变量时，实际上是在访问它
+的副本，而不是访问原始变量。如果局部变量仅仅赋值一次那就没有什么区别了——因此就有了
+这个限制。  
+第二，这一限制不鼓励你使用改变外部变量的典型命令式编程模式（我们会在以后的各章中
+解释，这种模式会阻碍很容易做到的并行处理）。
+
+##### 方法引用
+方法引用让你可以重复使用现有的方法定义，并像Lambda一样传递它们。在一些情况下，比起使用Lambda表达式，它们似乎更易读，感觉也更自然。
+```java
+inventory.sort((Apple a1, Apple a2) -> a1.getWeight().compareTo(a2.getWeight())); 
+//（使用方法引用和java.util.Comparator.comparing)
+inventory.sort(Comparator.comparing(Apple::getWeight)); 
+inventory.sort(Comparator.comparing(Apple::getColor).thenComparing(Apple::getWeigth));//比较器链
+```
+方法引用可以被看作仅仅调用特定方法的Lambda的一种快捷写法。它的基本思想是，如果一个Lambda代表的只是“直接调用这个方法”，那最好还是用名称
+来调用它，而不是去描述如何调用它。事实上，方法引用就是让你根据已有的方法实现来创建Lambda表达式。但是，显式地指明方法的名称，你的代码的可
+读性会更好。它是如何工作的呢？当你需要使用方法引用时，目标引用放在分隔符::前，方法的名称放在后面。例如，Apple::getWeight就是引用了Apple类
+中定义的方法getWeight。请记住，不需要括号，因为你没有实际调用这个方法。方法引用就是Lambda表达式(Apple a) -> a.getWeight()的快捷写法。
+
+| Lambda        | 等效的方法引用    |  
+|  :----:   |  :----:  |
+| (Apple a) -> a.getWeight()         | Apple::getWeight       |  
+| () -> Thread.currentThread().dumpStack()         | Thread.currentThread()::dumpStack      |   
+| (str, i) -> str.substring(i)        | String::substring      |   
+| (String s) -> System.out.println(s)         | System.out::println     | 
+
+###### 如何构建方法引用  
+方法引用主要有三类
+1.  指向静态方法的方法引用（例如Integer的parseInt方法，写作Integer::parseInt）
+2.  指向任意类型实例方法 的方法引用（例如 String 的 length 方法，写作String::length）。
+3.  指向现有对象的实例方法的方法引用（假设你有一个局部变量expensiveTransaction用于存放Transaction类型的对象，它支持实例方法getValue，
+     那么你就可以写expensiveTransaction::getValue）。
+
+###### 谓词复合
+谓词接口包括三个方法：negate、and和or，让你可以重用已有的Predicate来创建更复杂的谓词。
+`a.or(b).and(c)可以看作(a || b) && c`  
+组合谓词，表达要么是重（150克以上）的红苹果，要么是绿苹果：
+```java
+Predicate<Apple> s = apple -> apple.getColor().equals("red");
+        s.negate().and(apple -> apple.getWeigth()<100).or(
+                apple -> apple.getWeigth()>10
+        );
+```
+###### 函数复合
+Function接口所代表的Lambda表达式复合起来。Function接口为此配了andThen和compose两个默认方法，它们都会返回Function的一个实例。
+* andThen方法会返回一个函数，它先对输入应用一个给定函数，再对输出应用另一个函数。
+假设有一个函数f给数字加1 (x -> x + 1)，另一个函数g给数字乘2，你可以将它们组合成一个函数h，先给数字加1，再给结果乘2
+```java
+Function<Integer, Integer> f = x -> x + 1;
+Function<Integer, Integer> g = x -> x * 2;
+Function<Integer, Integer> h = f.andThen(g);
+int result = h.apply(1);//4  数学上一般会写作g(f(x))
+```
+* compose方法，先把给定的函数用作compose的参数里面给的那个函数，然后再把函数本身用于结果。用compose的话，它将意味着f(g(x))，而andThen则意味着g(f(x))：
+```java
+Function<Integer, Integer> f = x -> x + 1;
+Function<Integer, Integer> g = x -> x * 2;
+Function<Integer, Integer> h = f.compose(g);
+int result = h.apply(1);// 3
+```
+
+###### 用谓词筛选
+Streams接口支持filter方法。该操作会接受一个谓词（一个返回boolean的函数）作为参数，并返回一个包括所有符合谓词的元素的流。
+```java
+List<Dish> dishes = menu.parallelStream().filter(Dish::isVegetarian).collect(Collectors.toList());
+```
+###### 筛选各异的元素
+作distinct的方法，它会返回一个元素各异（根据流所生成元素的hashCode和equals方法实现）的流。
+```java
+List<Integer> numbers = Arrays.asList(1, 2, 1, 3, 3, 2, 4);
+numbers.stream().filter(i -> i % 2 != 0).distinct().forEach(System.out::println);
+```
+###### 截短流
+流支持limit(n)方法，该方法会返回一个不超过给定长度的流。所需的长度作为参数传递给limit。如果流是有序的，则最多会返回前n个元素。
+
+###### 跳过元素
+流还支持skip(n)方法，返回一个扔掉了前n个元素的流。如果流中元素不足n个，则返回一个空流。请注意，limit(n)和skip(n)是互补的。
+
+##### 映射
+* 对流中每一个元素应用函数  
+流支持map方法，它会接受一个函数作为参数。这个函数会被应用到每个元素上，并将其映射成一个新的元素（使用映射一词，是因为它和
+转换类似，但其中的细微差别在于它是“创建一个新版本”而不是去“修改”）
+```java
+// 因为getName方法返回一个String，所以map方法输出的流的类型就是Stream<String>
+List<String> dishNames = menu.stream().map(Dish::getName).collect(toList());
+
+List<Integer> dishNameLengths = menu.stream().map(Dish::getName).map(String::length).collect(toList());
+```
+* 流的扁平化flatMap  
+一言以蔽之，flatmap方法让你把一个流中的每个值都换成另一个流，然后把所有的流连接起来成为一个流。
+
+
+##### Optional简介
+Optional<T>类（java.util.Optional）是一个容器类，代表一个值存在或不存在。
+
+###### 元素求和
+reduce方法
+```java
+/** 
+    reduce接受两个参数：
+    一个初始值，这里是0；
+    一个BinaryOperator<T>来将两个元素结合起来产生一个新值，这里我们用的是
+    lambda (a, b) -> a + b。
+**/
+int sum = numbers.stream().reduce(0, (a, b) -> a + b);
+```
+在Java 8中，Integer类现在有了一个静态的sum方法来对两个数求和，这恰好是我们想要的，用不着反复用Lambda写同一段代码了：
+`int sum = numbers.stream().reduce(0, Integer::sum);`
+* 无初始值
+reduce还有一个重载的变体，它不接受初始值，但是会返回一个Optional对象：
+`Optional<Integer> sum = numbers.stream().reduce((a, b) -> (a + b));`
+为什么它返回一个Optional<Integer>呢？考虑流中没有任何元素的情况。reduce操作无法返回其和，因为它没有初始值。
+这就是为什么结果被包裹在一个Optional对象里，以表明和可能不存在。

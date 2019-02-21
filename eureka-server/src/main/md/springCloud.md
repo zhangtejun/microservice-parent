@@ -507,15 +507,205 @@ public class RibbonLoadBalancerClient implements LoadBalancerClient {
 </dependency>
 ```
 >>2. 启动断路器模式,在启动类上添加@EnableHystrix
-
+>>3. 在需要的方法上增加@HystrixCommand和降级fallback
+```java
+@Service
+public class UserService {
+    @HystrixCommand(fallbackMethod = "defaultUser")
+    public String getUser(String userName) throws Exception {
+        if ("S".equals(userName)){
+            return  "okkk";
+        }else{
+            throw  new Exception();
+        }
+    }
+    /**
+     * getUser 出错时调用该方法，预返回友好提示
+     * @param userName
+     * @return
+     */
+    public String defaultUser(String userName){
+        return "1221323--->"+userName;
+    }
+}
+```
 >Feign中使用断路器
 >>在Feign中，默认是自带hystrix功能的，在老版本中是默认开启的，后续版本中已默认关闭，需要在配置文件中打开。
 >>1. 使用@FeignClient定义接口，配置降级回退类ClientServiceFallBack
->>2. 启用hystrix，feign-hystrix-enabled=true
+>>2. 启用hystrix，feign-hystrix-enabled = true
+>>3. 创建降级fallback类
+##### hystrix异常机制和处理
+Hystrix 的异常处理中，有5种出错的情况下会被 fallback 所截获，从而触发 fallback：
+* FAILURE：执行失败，抛出异常。
+* TIMEOUT：执行超时。
+* SHORT_CIRCUITED：断路器打开。
+* THREAD_POOL_REJECTED：线程池拒绝。
+* SEMAPHORE_REJECTED：信号量拒绝。
+有一种类型的异常是不会触发 fallback 且不会被计数进入熔断的，它是 BAD_REQUEST，会抛出 HystrixBadRequestException，
+这种异常一般对应的是由非法参数或者一些非系统异常引起的，对于这类异常可以根据响应创建对应的异常进行异常封装或者直接处理。
 
+##### hystrix 请求缓存
+使用HystrixCommand有2种方式，第一种是继承，另一种是直接注解。
+hystrix的缓存在一次请求内有效，这要求请求在一个hystrix上下文中，故需要先初始化hystrix上下文，可以使用filter和intercept进行
+初始化。
+1. 初始化HystrixRequestContext
+2. 使用类开启缓存，只要继承HystrixCommand，重新getCache，增加clean方法。
+3. 注册拦截器
+```java
+//1. 初始化 HystrixRequestContext 本次通过拦截器方式，还可以通过filter来实现
+public class CacheInterceptor implements HandlerInterceptor {
+    //初始化Hystrix请求上下文
+    HystrixRequestContext context ;
+    @Override
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
+        context= HystrixRequestContext.initializeContext();
+        log.info("--------》 HystrixRequestContext.initializeContext end ");
+        return true;
+    }
 
+    @Override
+    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) {
+        context.shutdown();
+        log.info("--------》 HystrixRequestContext.initializeContext shutdown ");
+    }
+}
 
+// 2. 使用类开启缓存，只要继承HystrixCommand，重新getCache，增加clean方法。
+public class CacheCommand extends HystrixCommand {
+    private static final HystrixCommandKey GETTER_KEY= HystrixCommandKey.Factory.asKey("CommandKey");
+    private RestTemplate restTemplate;
+    private String string;
 
+    public CacheCommand(RestTemplate restTemplate, String string) {
+        super(Setter.withGroupKey(HystrixCommandGroupKey.Factory.asKey("myCacheCommand")).andCommandKey(GETTER_KEY));
+        this.restTemplate = restTemplate;
+        this.string = string;
+    }
+    @Override
+    protected Object run() throws Exception {
+        String json = restTemplate.getForObject("http://service-provider/testHystrixCache/{string}",String.class,string);
+        log.info("------------>" + json);
+        return json;
+    }
+
+    @Override
+    protected String getCacheKey() {
+        return this.string;
+    }
+    public static void flushCache(String string){
+        HystrixRequestCache.getInstance(GETTER_KEY, HystrixConcurrencyStrategyDefault.getInstance()).clear(string);
+    }
+}
+
+//3. 注册拦截器
+public class WebComponent2Config {
+    @Autowired
+    public CacheInterceptor cacheInterceptor;
+
+    @Bean
+    public WebMvcConfigurer webMvcConfigurer(){
+        WebMvcConfigurer webMvcConfigurer = new WebMvcConfigurer() {
+            @Override
+            public void addInterceptors(InterceptorRegistry registry) {
+                registry.addInterceptor(cacheInterceptor).addPathPatterns("/**");
+            }
+        };
+        return webMvcConfigurer;
+    }
+}
+
+// 4.1 test 使用类开启缓存
+public class CacheController {
+    @Autowired
+    private RestTemplate restTemplate;
+    @GetMapping(value = "getFromCache/{string}")
+    public String getFromCache(@PathVariable("string") String string){
+        CacheCommand cacheCommand = new CacheCommand(restTemplate,string);
+        cacheCommand.execute();
+        log.info("from cache : "+ cacheCommand.isResponseFromCache());// false
+        CacheCommand cacheCommand1 = new CacheCommand(restTemplate,string);
+        cacheCommand1.execute();
+        log.info("from cache : "+ cacheCommand1.isResponseFromCache()); // true
+        return "ok";
+    }
+}
+
+// 4.2 test 使用注解开启缓存
+// 4.2.1 新增CacheService
+public class CacheService {
+    @Autowired
+    public RestTemplate restTemplate;
+
+    @HystrixCommand(commandKey = "AAA")
+    @CacheResult
+    public String getFromCache(@CacheKey String str){
+        String json = restTemplate.getForObject("http://service-provider/testHystrixCache/{string}",String.class,str);
+        log.info("@@@@@@@@@@@@@@@@@@------------>" + json);
+        return json;
+    }
+    @CacheRemove(commandKey = "AAA")
+    @HystrixCommand
+    public String update(@CacheKey String str){
+        return "okk";
+    }
+}
+// 4.2.2 test 使用注解开启缓存
+@RestController
+@Slf4j
+public class CacheController {
+    @Autowired
+    private RestTemplate restTemplate;
+    @Autowired
+    private CacheService cacheService;
+
+    @GetMapping(value = "getFromCache/{string}")
+    public String getFromCache(@PathVariable("string") String string){
+        CacheCommand cacheCommand = new CacheCommand(restTemplate,string);
+        cacheCommand.execute();
+        log.info("from cache : "+ cacheCommand.isResponseFromCache());
+        CacheCommand cacheCommand1 = new CacheCommand(restTemplate,string);
+        cacheCommand1.execute();
+        log.info("from cache : "+ cacheCommand1.isResponseFromCache());
+        return "ok";
+    }
+
+    @GetMapping(value = "getFromCacheByAnnotation/{string}")
+    public String getFromCacheByAnnotation(@PathVariable("string") String string){
+        cacheService.getFromCache(string);
+        cacheService.getFromCache(string);
+        cacheService.update(string);//@CacheRemove(commandKey = "AAA") 清除缓存
+        cacheService.getFromCache(string);
+        cacheService.getFromCache(string);
+        return "ok";
+    }
+}
+
+// 5. filter 初始化 HystrixRequestContext
+/**
+ * 2 种注册方式
+ * 1. @WebFilter 注解 启动类增加 @ServletComponentScan
+ * 2. 通过@Configuration注册
+ */
+@Slf4j
+@WebFilter(filterName = "hystrixRequestContextServletFilter",urlPatterns = "/*",asyncSupported = true)
+public class HystrixRequestContextServletFilter implements Filter {
+    @Override
+    public void init(FilterConfig filterConfig) {}
+    @Override
+    public void destroy() {}
+    @Override
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain filterChain) throws IOException, ServletException {
+        HystrixRequestContext context = HystrixRequestContext.initializeContext();
+        try {
+            log.info("@@@@@@@@@->HystrixRequestContextServletFilter");
+            filterChain.doFilter(request, response);
+        } finally {
+            context.shutdown();
+        }
+    }
+}
+
+```
 
 
 
