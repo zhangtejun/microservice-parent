@@ -29,7 +29,7 @@ public class CacheController {
     }
 
     @GetMapping(value = "getFromCacheByAnnotation/{string}")
-    public String getFromCacheByAnnotation(@PathVariable("string") String string){
+    public String getFromCacheByAnnotation(@PathVariable("string") String string) throws Exception {
         cacheService.getFromCache(string);
         cacheService.getFromCache(string);
         cacheService.update(string);

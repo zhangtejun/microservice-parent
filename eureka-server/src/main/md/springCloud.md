@@ -706,14 +706,244 @@ public class HystrixRequestContextServletFilter implements Filter {
 }
 
 ```
+##### Hystrix线程传递及并发策略
+Hystrix会对请求进行封装，然后管理请求的调用，从而实现断路等功能。
+Hystrix提供2种`隔离级别`来进行请求的操作。
+* 信号量
+* 线程隔离
+如果信号量，则Hystrix在请求时会获取一个信号量，如果获取成功则继续执行请求，请求在一个线程中完成。  
+如果是线程隔离，Hystrix会把请求放到线程池中执行，这时可能产生线程变化，从而导致线程1的上下文数据在线程2里不能正常获取到。
+```java
+// 1. 定义测试Controller
+@RestController
+@Slf4j
+public class ThreadContextController {
+    @Autowired
+    private ThreadContextService threadContextService;
+    @GetMapping("/getUser/{id}")
+    public String getUser(@PathVariable("id") Integer id){
+        // 第一个种情况，放入上下文
+        HystrixThreadLocal.threadLocal.set("userId : "+ id);
+        // 第二种情况 用RequestContextHolder 存放
+        RequestContextHolder.currentRequestAttributes().setAttribute("userId","userId : "+id, RequestAttributes.SCOPE_REQUEST);
+        log.info("ThreadContextController ,Current thread : " + Thread.currentThread().getName() + " : id--->  " + Thread.currentThread().getId());
+        log.info("ThreadContextController ,ThreadContext object  : " + HystrixThreadLocal.threadLocal.get());
+        log.info("ThreadContextController "+RequestContextHolder.currentRequestAttributes().getAttribute("userId",RequestAttributes.SCOPE_REQUEST));
+        return threadContextService.getUser(id);
+    }
+}
 
+// 2. 测试Service，getUser方法是否增加@HystrixCommand
+/**
+* 2.1 getUser方法不增加@HystrixCommand
+* ThreadContextController ,Current thread : http-nio-5000-exec-1 : id--->  42
+  ThreadContextController ,ThreadContext object  : userId : 5555
+  ThreadContextController userId : 5555
+  ThreadContextService ,Current thread : http-nio-5000-exec-1 : id--->  42
+  ThreadContextService ,ThreadContext object  : userId : 5555
+  ThreadContextService userId : 5555
+  
+* 2.2 getUser方法增加@HystrixCommand
+* ThreadContextController ,Current thread : http-nio-5000-exec-1 : id--->  41
+  ThreadContextController ,ThreadContext object  : userId : 5555
+  ThreadContextController userId : 5555
+  ThreadContextService ,Current thread : hystrix-ThreadContextService-1 : id--->  68
+  ThreadContextService ,ThreadContext object  : null
+  java.lang.IllegalStateException: No thread-bound request found
+  
+  2.3 加上HystrixCommand注解后，说明线程隔离已生效，线程id由41变化为68，是重新新建线程去请求的，线程变量也丢失了。
+  2.4 解决方案： 
+               A: Hystrix默认是线程隔离，可以修改Hystrix隔离策略，使用信号量，可通过修改配置文件实现。不推荐，因为真实项目大部分均使用线程隔离。（hystrix.command.default.execution.isolation.strategy= THREAD|SEMAPHORE）
+               B: 官方推荐的一种方式：使用HystrixConcurrencyStrategy
+*/          
+@Slf4j 
+@Service
+public class ThreadContextService {
+    @Autowired
+    private RestTemplate restTemplate;
+    @HystrixCommand
+    public String getUser(Integer id) {
+        log.info("ThreadContextService ,Current thread : " + Thread.currentThread().getName() + " : id--->  " + Thread.currentThread().getId());
+        log.info("ThreadContextService ,ThreadContext object  : " + HystrixThreadLocal.threadLocal.get());
+        log.info("ThreadContextService "+RequestContextHolder.currentRequestAttributes().getAttribute("userId",RequestAttributes.SCOPE_REQUEST));
+        String json = restTemplate.getForObject("http://service-provider/testHystrixCache/{string}", String.class, id);
+        log.info("@@@@@@@@@@@@@@@@@@------------>ThreadContextService :" + json);
+        return json;
+    }
+}
+```
+##### 使用HystrixConcurrencyStrategy
+我们可以声明一个定制化的HystrixConcurrencyStrategy实例，并通过HystrixPlugins注册。
+被@HystrixCommand注解的方法，其执行源Callable可以通过wrapCallable方法进行定制化装饰，加入附加的行为。
 
+编写自定义并发策略只需编写一个类，让其继承HystrixConcurrencyStrategy ，并重写wrapCallable 方法即可。可以
+提供重写这个方法来封装自己想要的线程参数。
+该类提供一个在请求执行前包装的计划，可以注入自己定义的动作，比如复制线程状态等附加行为。
+HystrixPlugins帮助我们注册自定义的Plugin。
+1. 定义一个TestHystrixConcurrencyStrategy实现HystrixConcurrencyStrategy接口，并重写其wrapCallable方法：
+```java
+@Component
+@Slf4j
+public class TestHystrixConcurrencyStrategy extends HystrixConcurrencyStrategy {
+    @Override
+    public <T> Callable<T> wrapCallable(Callable<T> callable) {
+        return new HystrixThreadCallable<>(callable, RequestContextHolder.getRequestAttributes(), HystrixThreadLocal.threadLocal.get());
+    }
 
+    static class HystrixThreadCallable<T> implements Callable<T> {
+        private final Callable<T> target;
+        private final RequestAttributes requestAttributes;
+        private String s ;
+        public HystrixThreadCallable(Callable<T> target, RequestAttributes requestAttributes, String s) {
+            this.target = target;
+            this.requestAttributes = requestAttributes;
+            this.s = s;
+        }
+        @Override
+        public T call() throws Exception {
+            try {
+                RequestContextHolder.setRequestAttributes(requestAttributes);
+                HystrixThreadLocal.threadLocal.set(s);
+                log.warn("----------------> TestHystrixConcurrencyStrategy call()");
+                return target.call();
+            }
+            finally {
+                RequestContextHolder.resetRequestAttributes();
+                HystrixThreadLocal.threadLocal.remove();
+            }
+        }
+    }
+}
+```
+2. 同样在任意配置类中添加如下代码段即可，通过HystrixPlugins注册RequestContextHystrixConcurrencyStrategy：
+```java
+@PostConstruct
+public void init() {
+    HystrixPlugins.getInstance().registerConcurrencyStrategy(new TestHystrixConcurrencyStrategy());
+}
+```
+至此隔离策略为线程隔离时，也能正常请求。
+[参考文章](https://blog.csdn.net/songhaifengshuaige/article/details/80345012)  
+HystrixPlugins的registerConcurrencyStrategy方法只能被调用一次，将导致无法和其他并发策略一起使用。
+```java
+public void registerConcurrencyStrategy(HystrixConcurrencyStrategy impl) {
+    if (!concurrencyStrategy.compareAndSet(null, impl)) {
+        throw new IllegalStateException("Another strategy was already registered.");
+    }
+}
+```
+如何达到其他策略并存？  
+具体做法是： 在构造此并发策略时，找到之前已经存在的并发策略，并保留在类的属性中，在调用过程中，返回之前并发策略的相关信息，如 请求变量
+，连接池，阻塞队列等请求进来时，既不影响之前的并发策略，也可以包装需要的请求信息。  
+参考：`HystrixSecurityAutoConfiguration`,`SecurityContextConcurrencyStrategy`  
+```java
+/**
+ * 将现有的并发策略作为新并发策略的成员变量
+ * 在新并发策略中，返回现有并发策略的线程池、Queue等
+ */
+@Component
+@Slf4j
+public class TestHystrixConcurrencyStrategy extends HystrixConcurrencyStrategy {
+    private HystrixConcurrencyStrategy delegate ;
 
+    public TestHystrixConcurrencyStrategy(){
 
+        this.delegate  = HystrixPlugins.getInstance().getConcurrencyStrategy();
+        if (this.delegate instanceof TestHystrixConcurrencyStrategy) {
+            return;
+        }
+        // Keeps references of existing Hystrix plugins.
+        HystrixEventNotifier eventNotifier = HystrixPlugins.getInstance()
+                .getEventNotifier();
+        HystrixMetricsPublisher metricsPublisher = HystrixPlugins.getInstance()
+                .getMetricsPublisher();
+        HystrixPropertiesStrategy propertiesStrategy = HystrixPlugins.getInstance()
+                .getPropertiesStrategy();
+        HystrixCommandExecutionHook commandExecutionHook = HystrixPlugins.getInstance()
+                .getCommandExecutionHook();
 
+        HystrixPlugins.reset();
 
+        // Registers existing plugins excepts the Concurrent Strategy plugin.
+        HystrixPlugins.getInstance().registerConcurrencyStrategy(this);
+        HystrixPlugins.getInstance().registerEventNotifier(eventNotifier);
+        HystrixPlugins.getInstance().registerMetricsPublisher(metricsPublisher);
+        HystrixPlugins.getInstance().registerPropertiesStrategy(propertiesStrategy);
+        HystrixPlugins.getInstance().registerCommandExecutionHook(commandExecutionHook);
+    }
 
+    @Override
+    public <T> Callable<T> wrapCallable(Callable<T> callable) {
+        return new HystrixThreadCallable<>(callable, RequestContextHolder.getRequestAttributes(), HystrixThreadLocal.threadLocal.get());
+    }
+
+    static class HystrixThreadCallable<T> implements Callable<T> {
+        private final Callable<T> target;
+        private final RequestAttributes requestAttributes;
+        private String s ;
+        public HystrixThreadCallable(Callable<T> target, RequestAttributes requestAttributes, String s) {
+            this.target = target;
+            this.requestAttributes = requestAttributes;
+            this.s = s;
+        }
+        @Override
+        public T call() throws Exception {
+            try {
+                RequestContextHolder.setRequestAttributes(requestAttributes);
+                HystrixThreadLocal.threadLocal.set(s);
+                log.warn("----------------> TestHystrixConcurrencyStrategy call()");
+                return target.call();
+            }
+            finally {
+                RequestContextHolder.resetRequestAttributes();
+                HystrixThreadLocal.threadLocal.remove();
+            }
+        }
+    }
+
+    @Override
+    public BlockingQueue<Runnable> getBlockingQueue(int maxQueueSize) {
+        return this.delegate.getBlockingQueue(maxQueueSize);
+    }
+
+    @Override
+    public ThreadPoolExecutor getThreadPool(HystrixThreadPoolKey threadPoolKey, HystrixThreadPoolProperties threadPoolProperties) {
+        return delegate.getThreadPool(threadPoolKey, threadPoolProperties);
+    }
+
+    @Override
+    public ThreadPoolExecutor getThreadPool(HystrixThreadPoolKey threadPoolKey, HystrixProperty<Integer> corePoolSize, HystrixProperty<Integer> maximumPoolSize, HystrixProperty<Integer> keepAliveTime, TimeUnit unit, BlockingQueue<Runnable> workQueue) {
+        return delegate.getThreadPool(threadPoolKey, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue);
+    }
+
+    @Override
+    public <T> HystrixRequestVariable<T> getRequestVariable(HystrixRequestVariableLifecycle<T> rv) {
+        return this.delegate.getRequestVariable(rv);
+    }
+}
+```
+##### Hystrix命令注解
+*  HystrixCommand
+用于封装执行代码，然后具有故障延迟容错，断路器等功能，但它是阻塞命令，可以和Obervable共用。
+* HystrixObservableCommand
+同HystrixCommand，主要区别是非阻塞的调用模式。
+
+都支持故障延迟容错，断路器，指标统计等功能。
+
+区别：
+* HystrixCommand默认是阻塞的，可以支持同步和异步2种方式，HystrixObservableCommand默认是非阻塞，默认只能异步。
+* HystrixCommand 的方法是run,HystrixObservableCommand执行的是construct。
+* HystrixCommand 的一个实例只能发出一条数据，HystrixObservableCommand 可以发送多条数据。
+
+>HystrixCommand 属性：
+>>commandKey 全局唯一标志符，如果不配置，默认方法名。  
+>>defaultFallback 默认的fallback方法，该函数不能有入参，返回值和Hystrix方法保持一致，但是fallbackMethod优先级更高。
+>>FallbackMethod 方法执行时熔断、错误、超时时会执行的回退方法，需要保持此方法与 Hystrix 方法(@HystrixCommand被该注解的方法)的签名和返回值一致。
+>>ignoreExceptions 哪些异常需要被忽略，不进行fallback。
+>>commandProperties 配置一些命令的属性，如隔离级别等。
+>>threadPoolProperties 配置hystrix依赖的线程池相关参数。
+>>groupKey 全局唯一标识服务分组的名称，一般会再创建HystrixCommand时指定命令组来实现默认的线程池划分。
+>>threadPoolKey 对服务线程池信息进行设置，用于HystrixThreadPool 监控，缓存等。
 
 
 
