@@ -36,11 +36,21 @@ public class CacheService {
     @CacheRemove(commandKey = "AAA")
     @HystrixCommand
     public String update(@CacheKey String str){
+
         return "okk";
     }
 
     public String defaultFallback(String i){
 
+
         return "defaultFallback";
+    }
+
+
+    public String updateSome(@CacheKey String str){
+        //
+        //logService.insert("用户1 更新了  XXX   2019-01-09");
+
+        return "okk";
     }
 }
