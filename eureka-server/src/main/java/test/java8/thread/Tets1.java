@@ -1,8 +1,10 @@
 package test.java8.thread;
 
+import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 import org.springframework.web.bind.annotation.SessionAttributes;
 
+@Slf4j
 public class Tets1 {
     public static void main(String[] args) throws InterruptedException {
         Runnable r = () -> {
@@ -28,5 +30,19 @@ public class Tets1 {
         Thread.currentThread().interrupt();
         System.out.println("是否停止1 ： "+Thread.interrupted());// true  interrupted判断当前线程是否已是停止状态，该方法具有清除状态功能
         System.out.println("是否停止2 ： "+Thread.interrupted());// false
+    }
+
+    @Test
+    public void t2() throws InterruptedException {
+        MyThread[] myThreads = new  MyThread[100];
+
+        for (int i =0 ; i<100;i++){
+            myThreads[i] = new MyThread();
+        }
+
+        for (int i =0 ; i<100;i++){
+            myThreads[i].start();
+        }
+        //Thread.sleep(30000);
     }
 }
