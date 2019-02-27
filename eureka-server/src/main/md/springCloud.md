@@ -945,16 +945,121 @@ public class TestHystrixConcurrencyStrategy extends HystrixConcurrencyStrategy {
 >>groupKey 全局唯一标识服务分组的名称，一般会再创建HystrixCommand时指定命令组来实现默认的线程池划分。
 >>threadPoolKey 对服务线程池信息进行设置，用于HystrixThreadPool 监控，缓存等。
 
+##### Spring cloud Zuul
+Zuul作为微服务网关，是一个面向服务治理，访问编排的组件。
+Zuul是从设备和网站到后端程序所有请求的前门，为内部服务提供可配置的对外URL到服务的映射关系。
+* 认证和鉴权
+* 压力控制
+* 金丝雀测试
+* 动态路由
+* 负载消弱
+* 静态响应处理
+* 主动流量管理
+其底层基于Servlet，本质组件是一系列有Filter构成的责任链。zuul 1.x   2.x（底层采用netty）
+1. 导入pom依赖
+```xml
+<dependencies>
+    <dependency>
+        <groupId>org.springframework.cloud</groupId>
+        <artifactId>spring-cloud-start-netflix-zuul</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>org.springframework.cloud</groupId>
+        <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+    </dependency>
+</dependencies>
+```
+2. 编写启动类`@EnableDiscoveryClient,@EnableZuulProxy`
+3. 配置文件
+>serviceId单实例配置
+>>
+```yaml
+zuul:
+       routes:
+         service-invoker:
+                     path: /client/**
+                     serviceId: service-invoker
+# 可以简化为
+zuul:
+       routes:
+         service-invoker: /client/**
 
+zuul:
+       routes:
+         service-invoker:
+# 等价于
+zuul:
+       routes:
+         service-invoker:
+                     path: /service-invoker/**
+                     serviceId: service-invoker
+```
+>单实例URL配置
+>>除了路由到服务外，还可以路由到物理地址，将serviceId替换为url
+```yaml
+zuul:
+       routes:
+         service-invoker:
+                     path: /client/**
+                     url: http://localhost:5000 # service-invoker地址
+```
+>多实例路由
+>>默认会使用Eureka中集成的负载均衡功能，如果想要使用Ribbon提供的负载均衡功能，就需要指定一个serviceId,此操作需要禁止Ribbon使用Eureka。
 
+>forward本地跳转,client1为zuul-server的mapping
+```yaml
+zuul:
+       prefix: /pre #指定前缀
+       routes:
+         service-invoker:
+                     path: /client1/**
+                     url: forward:/client1
+                     stripPrefix: false # 禁用prefix
+```
+>路由通配符/** 匹配任意数量的路径和字符，/*匹配任意数量的字符，/？匹配单个字符。
 
+###### 路由前缀
+```yaml
+zuul:
+       prefix: /pre #指定前缀
+       routes:
+         service-invoker:
+                     path: /client1/**
+                     url: forward:/client1
+                     stripPrefix: false # 禁用prefix
+```
+###### 服务和路径屏蔽
+可以避免服务或者路径的侵入
+```yaml
+```
+###### 敏感头信息
+zuul可以配置敏感头信息，切断它和下成服务的交互。
 
+###### 重定向 add-host-header: true
+```yaml
+zuul:
+  prefix: /pre #指定前缀
+  routes:
+    service-invoker:
+                path: /client/**
+                serviceId: service-invoker
+                stripPrefix: false # 禁用prefix
+  ignored-patterns: /**/AA/** # 忽略的接口
+  ignore-service: serviceName # 忽略的服务
+  add-host-header: true
+```
+###### 重试机制
+Zuul可以配合Ribbon(默认集成)来做重试，需要接口保持幂等。
+```yaml
+zuul:
+  retryable: true #开启重试
 
+ribbon:
+      MaxAutoRetries: 1 # 同一个服务的重试次数，不包含首次
+      MaxAutoRetriesNextServer: 1 #切换相同服务数量
+```
 
-
-
-
-
+----174--656
 
 
 
