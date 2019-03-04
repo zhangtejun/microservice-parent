@@ -1,4 +1,4 @@
-package com.example.servicep.rovider;
+package com.example.service.provider;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
