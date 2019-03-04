@@ -1059,6 +1059,72 @@ ribbon:
       MaxAutoRetriesNextServer: 1 #切换相同服务数量
 ```
 
+网关层需要做的有鉴权，限流，动态路由，文件上传，参数转换，其他逻辑和业务处理。
+
+##### zuul filter 链
+>zuul工作原理
+>>zuul的核心是由一系列紧密配合工作的Filter来实现，他们可以在http请求或者响应的时候执行相关操作。
+
+>zuul Filter 特性
+>>Filter的类型：Filter的类型决定了此Filter在Filter链中的执行顺序。可能是路由动作发生前或者路由动作发生后，可能是路由动作发生时，可能是路由过程中发生异常时，
+>>Filter的执行顺序：同一种类型的Filter可以通过设置filterOrder()方法来设置执行顺序。
+>>Filter的执行条件：Filter运行需要的标准或者条件。
+>>Filter的执行效果：符合某个Filter执行条件，产生的执行效果。
+
+>Zuul内部提供一个动态读取，编译和运行这些Filter的机制。Filter间不能直接通信，在请求线程中会通过RequestContext来共享状态，内部由ThreaLocal实现。
+
+##### zuul filter的请求周期
+zuul filter的核心执行流程
+```java
+try {
+      //.....
+            try {
+                this.preRoute();
+            } catch (ZuulException var13) {
+                this.error(var13);
+                this.postRoute();
+                return;
+            }
+
+            try {
+                this.route();
+            } catch (ZuulException var12) {
+                this.error(var12);
+                this.postRoute();
+                return;
+            }
+
+            try {
+                this.postRoute();
+            } catch (ZuulException var11) {
+                this.error(var11);
+            }
+        }
+```
+Zuul一共有4种生命周期的Filter：
+* pre 在Zuul按照规则路由到下级服务之前执行。如果需要对请求进行预处理，鉴权，限流等，应该在此类Filter中实现。
+* route 这类Filter是Zuul路由的执行者，是Apache HttpClient或者Netflix Ribbon构建和发送原始http请求的地方，也支持了okHttp.
+* post 这类Filter在源服务返回结果或者异常信息发生后执行的，如果需要对返回信息做一些处理，则在此类Filter进行处理。
+* error 整个生命周期内如果发送异常，则会进入error Filter,可作为全局异常处理。
+
+Zuul 原生Filter
+>Zuul Server 如果使用@EnableZuulProxy注解搭配Springboot Actuator,会多2个管控端点。
+>>/routes  返回所有已生成的映射规则
+>>/filters 返回当前Zuul Server中所有已注册的生效的Filter
+
+>禁用原生Filter
+>>`zuul.<SimpleClassName>.<FilterType>.disable = true`
+>>禁用SendErrorFilter,`zuul.SendErrorFilter.error.disable = true`
+
+自定义Filter
+>只需要继承ZuulFilter即可，ZuulFilter是一个抽象类，有如下方法需实现：
+>>String filterType(): 使用返回值设定Filter类型，可以设置为pre,route,post,error类型。
+>>int filterOrder(): 设置Filter的执行顺序
+>>boolean shouldFilter： 设置该Filter是否执行，可以作为开关使用
+>>Object run()： 核心执行逻辑，业务处理等操作
+
+
+
 ----174--656
 
 

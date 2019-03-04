@@ -1,0 +1,19 @@
+# zuul 将所有/client开头的请求URL映射到 service-invoker 这个服务中去
+zuul:
+  #prefix: /pre #指定前缀
+  routes:
+    service-invoker:
+                path: /client/**
+                serviceId: service-invoker
+                stripPrefix: false # 禁用prefix
+  # ignored-patterns: /**/AA/** # 忽略的接口
+  # ignore-service: serviceName # 忽略的服务
+  # add-host-header: true
+  # retryable: true #开启重试
+
+
+# 可以简化为 zuul:routes:service-invoker: /client/**
+# zuul:routes:service-invoker: 等价于 zuul:routes:service-invoker: path: /service-invoker/**
+#                                                                  serviceId: service-invoker
+
+#actuator
