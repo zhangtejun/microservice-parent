@@ -365,3 +365,44 @@ IntStream.generate(fib).limit(10).forEach(System.out::println);
 >>
 >>连接字符串
 >>>joining工厂方法返回的收集器会把对流中每一个对象应用toString方法得到的所有字符串连接成一个字符串。
+>>>joining工厂方法有一个重载版本可以接受元素间分割符。`String shortMenu = menu.stream().map(Dish::getName).collect(joining(", "));`
+
+以上的收集器，都是一个可以用 reducing 工厂方法定义的归约过程的特殊情况而已。 Collectors.reducing 工厂方法是所有这些特殊情况的一般化
+用 reducing 方法创建的收集器来计算你菜单的总热量，如下所示：
+```java
+int totalCalories = menu.stream().collect(reducing(0, Dish::getCalories, (i, j) -> i + j));
+```
+
+使用下面这样单参数形式的 reducing 来找到热量最高的菜:
+```java
+Optional<Dish> mostCalorieDish = menu.stream().collect(reducing((d1, d2) -> d1.getCalories() > d2.getCalories() ? d1 : d2));
+```
+收集器就没有起点，它将因此而返回一个 Optional<Dish> 对象。
+
+要数一数菜单中每类菜有多少个，可以传递 counting 收集器作为groupingBy 收集器的第二个参数：
+```java
+Map<Dish.Type, Long> typesCount = menu.stream().collect(groupingBy(Dish::getType, counting()));// {MEAT=3, FISH=2, OTHER=4}
+```
+
+##### 并行数据处理与性能
+假设你需要写一个方法，接受数字n作为参数，并返回从1到给定参数的所有数字的和。一个直接（也许有点土）的方法是生成一个无穷大的数字流，把它限制到给定的数目，然后用对两个
+数字求和的 BinaryOperator 来归约这个流。
+```java
+public static long sequentialSum(long n) {
+    return Stream.iterate(1L, i -> i + 1) // 生成无限流
+        .limit(n) // 限制到前n个数
+        .reduce(0L, Long::sum); //对所有数字求和来归纳流
+}
+//将顺序流转换为并行流
+public static long parallelSum(long n) {
+    return Stream.iterate(1L, i -> i + 1)
+        .limit(n)
+        .parallel() //转为并行流
+        .reduce(0L, Long::sum);
+}
+```
+
+
+
+
+

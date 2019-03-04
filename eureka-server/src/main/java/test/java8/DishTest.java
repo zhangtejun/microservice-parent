@@ -8,9 +8,12 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+
+import static java.util.stream.Collectors.joining;
 
 public class DishTest {
   public static   List<Dish> menu = Arrays.asList(
@@ -28,7 +31,20 @@ public class DishTest {
   );
 
     public static void main(String[] args) throws IOException {
-        System.out.println(menu.stream().count());
+        System.out.println(menu.stream().map(Dish::getName).collect(joining(", ")));
+        System.out.println("Sequential sum done in:" +
+                measureSumPerf(ParallelStreams::sequentialSum, 10_000_000) + " msecs");
+
+        System.out.println("Iterative sum done in:" +
+                measureSumPerf(ParallelStreams::iterativeSum, 10_000_000) + " msecs");
+
+        System.out.println("rangedSum sum done in:" +
+                measureSumPerf(ParallelStreams::rangedSum, 10_000_000) + " msecs");
+
+        System.out.println("parallelRangedSum sum done in:" +
+                measureSumPerf(ParallelStreams::parallelRangedSum, 10_000_000) + " msecs");
+
+        /*System.out.println(menu.stream().count());
 
         menu.stream().collect(Collectors.summarizingInt(Dish::getCalories));
 
@@ -36,7 +52,7 @@ public class DishTest {
         IntStream intStream = menu.stream().mapToInt(Dish::getCalories);
 
 
-        Stream<Integer> integerStream = menu.stream().map(Dish::getCalories);
+        Stream<Integer> integerStream = menu.stream().map(Dish::getCalories);*/
        /* List<Dish> dishes = menu.parallelStream().filter(Dish::isVegetarian).collect(Collectors.toList());
        // dishes.forEach(System.err::println);
 
@@ -59,4 +75,17 @@ public class DishTest {
         Stream.iterate(0,n -> n+1).limit(3).forEach(System.err::println);
         Stream.generate(Math::random).limit(5).forEach(System.out::println);*/
     }
+
+    public static long measureSumPerf(Function<Long, Long> adder, long n) {
+        long fastest = Long.MAX_VALUE;
+        for (int i = 0; i < 10; i++) {
+            long start = System.nanoTime();
+            long sum = adder.apply(n);
+            long duration = (System.nanoTime() - start) / 1_000_000;
+            //System.out.println("Result: " + sum);
+            if (duration < fastest) fastest = duration;
+        }
+        return fastest;
+    }
+
 }
