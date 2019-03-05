@@ -1123,8 +1123,21 @@ Zuul 原生Filter
 >>boolean shouldFilter： 设置该Filter是否执行，可以作为开关使用
 >>Object run()： 核心执行逻辑，业务处理等操作
 
-
-
+##### 鉴权
+1. 加入pom.xml依赖
+```xml
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-security</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-oauth2</artifactId>
+</dependency>
+```
+2. 配置application文件
+```yaml
+```
 ----174--656
 
 

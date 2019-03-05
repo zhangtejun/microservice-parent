@@ -1,0 +1,20 @@
+server:
+  port: 9997
+  servlet:
+    context-path: /uaa
+eureka:
+  instance:
+    #hostname: localhost
+    prefer-ip-address: true
+  client:
+    # register-with-eureka: true
+    # fetch-registry: true
+    service-url.defaultZone: http://127.0.0.1:9000/eureka/
+    # service-url.defaultZone: http://${eureka.instance.hostname}:${server.port}/eureka
+spring:
+  application:
+    name: auth-server
+logging:
+  level:
+    root:
+      debug

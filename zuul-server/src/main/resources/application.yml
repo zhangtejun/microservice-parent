@@ -2,11 +2,11 @@ server:
   port: 5555
 eureka:
   instance:
-    hostname: localhost
+    # hostname: localhost
     prefer-ip-address: true
   client:
-    register-with-eureka: true
-    fetch-registry: true
+    #register-with-eureka: true
+    # fetch-registry: true
     service-url.defaultZone: http://127.0.0.1:9000/eureka/
     # service-url.defaultZone: http://${eureka.instance.hostname}:${server.port}/eureka
 spring:
@@ -14,7 +14,20 @@ spring:
     name: zuul-server
 
 zuul:
-       routes:
-         service-invoker:
-                     path: /client/**
-                     serviceId: service-invoker
+  routes:
+   service-invoker:
+     path: /client/**
+     serviceId: service-invoker
+security:
+  basic:
+    enabled: false
+  oauth2:
+    client:
+      access-token-uri: http://localhost:9997/uaa/oauth/token #令牌端点 jwt token 颁发地址
+      user-authorization-uri: http://localhost:9997/uaa/oauth/authorize # 授权端点   验证授权端点
+      client-id: zuul_server #oauth2客户端ID
+      client-secret: secret # oauth2客户端密钥
+    resource:
+      jwt:
+        key-value: zhtjun # 使用对称加密 默认hs256
+

@@ -2,20 +2,20 @@ package com.example.service.invoker.controller;
 
 import com.example.service.invoker.service.ClientService;
 import com.example.service.invoker.service.UserService;
+import com.netflix.ribbon.proxy.annotation.Http;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.hssf.usermodel.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.client.discovery.DiscoveryClient;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +43,11 @@ public class TestController {
          map.put("aa","testRibbon");
          map.put("bb", restTemplate.getForObject("http://service-provider:7000/testRibbon",String.class));
          return map;
+    }
+
+    @RequestMapping(value = "hello2", method = RequestMethod.GET)
+    public String index12() {
+        return "ok index12";
     }
 
     @RequestMapping(value = "hello", method = RequestMethod.GET)
@@ -115,6 +120,17 @@ public class TestController {
         workbook.write(response.getOutputStream());
 
     }
+
+    //test jwt
+    @GetMapping("/test")
+    public String jwt(HttpServletRequest request){
+        Enumeration<String> headerNames = request.getHeaderNames();
+        while (headerNames.hasMoreElements()){
+            System.err.println("key : "+request.getHeader(headerNames.nextElement() ));
+        }
+        return  "jwt ok";
+    }
+
 
     public static void main(String[] args) {
         System.out.println(12390-2080-100-7*21-30*36);
