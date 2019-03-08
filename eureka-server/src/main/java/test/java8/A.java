@@ -1,5 +1,7 @@
 package test.java8;
 
+import org.junit.Test;
+
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -21,5 +23,10 @@ public class A {
           int portNumber = 1337;
         Runnable r = () -> System.out.println(portNumber);
        // portNumber = 1;
+    }
+
+    @Test
+    public void aa(){
+        System.out.println(0L==0.00);
     }
 }

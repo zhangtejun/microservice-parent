@@ -12,3 +12,5 @@ eureka:
 spring:
   application:
     name: service-provider
+  thymeleaf:
+    prefix: classpath:/templates/

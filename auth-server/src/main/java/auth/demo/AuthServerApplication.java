@@ -53,4 +53,5 @@ public class AuthServerApplication extends WebSecurityConfigurerAdapter{
         return  delegatingPasswordEncoder;
     }*/
 
+
 }

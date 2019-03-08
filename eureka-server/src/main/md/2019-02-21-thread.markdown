@@ -113,6 +113,116 @@ public class Tets1 {
 >AtomicInteger原子操作，方法和方法间的调用不是原子的，要保证多个方法执行后，还保持原子性，需要加sychronized同步。
 
 #### 线程间的通信
+##### 等待/通知机制
+方法wait()的作用是使当前执行代码的线程进行等待,并释放共享资源锁，其是Object类的方法，在wait()方法所在代码行处停止执行，直到通知或中断为止。
+在调用wait()前，线程必须获得该对象的对象级别锁，即只能在同步方法或者同步代码块中调用wait()方法。
+notify()也需要在同步方法或者同步代码块中调用，线程也必须获得该对象的对象级别锁，该方法用来通知那些可能等待该对象的对象锁的其他线程
+，如果有多个线程等待，则有线程规划器随机选择其中一个呈现wait状态的线程，对其发出notify通知，并使它等待获取该对象的对象锁。
+执行notify方法后，当前线程不会马上释放锁，而是要等执行该方法的线程执行完后才释放。notify仅通知`一个线程`。如何没有待唤醒的线程，命令将被忽略。
+
+notifyAll()可以使所有正在等待队列的线程进入可运行状态。
+
+每个锁对象都有两个队列，一个是就绪队列，一个是阻塞队列，就绪队列存储了将要获得锁的线程，阻塞队列存储了被阻塞的线程，当一个被线程被唤醒 (notify)
+后，才会进入到就绪队列，等待获得锁。一个线程被wait后，就会进入阻塞队列。等待notify/notifyAll。
+
+当方法执行完wait后，锁自动释放，但是执行notify后，锁不自动释放。
+
+wait(long)方法： 等待某一时间内是否有线程对锁进行唤醒，如果没有则超过这个时间则自动唤醒。
+
+##### 通过管道进行线程间通信 字节流/字符流
+pipeStream用于不同线程间传递数据。
+
+jion方法（等待线程对象销毁）：主线程创建子线程，子线程进行耗时操作，往往主线程优先于子线程结束，如果主线程等待子线程完成并处理子线程的返回值时，jion可以实现
+jion内部使用wait方法进行等待，
+```java
+String lock = new String();
+MyThread1 myThread1 = new MyThread1(lock);
+myThread1.start();
+myThread1.join();
+System.out.println(5);//join方法使得 myThread1 run方法执行完成后，再执行由当前线程继续执行
+```
+
+jion(long)方法：设置等待时间，jion(2000)和sleep(2000)，sleep(long)方法在睡眠时不释放对象锁，join(long)方法在等待的过程中释放对象锁
+
+#### ThreadLocal
+每个线程拥有自己的私有数据。
+
+InheritableThreadLocal类可以让子线程从父线程中取得值。
+
+#### Lock
+##### ReenTrantLock
+* Condition 实现等待/通知
+notify/notifyAll方法进行通知时，被通知的线程由JVM随机选择，Condition可以有选择的通知，
+`Object 的wait()/wait(long)方法相当于Condition的await()/await(long,TimeUnit)`
+`Object notify()方法相当于Condition的signal()`
+`Object 的notifyAll()方法相当于Condition的signalAll()`
+```java
+public class LockService {
+    private Lock lock = new ReentrantLock();
+    public Condition conditionA = lock.newCondition();
+    public Condition conditionB = lock.newCondition();
+
+    public  void await_a(){
+        try {
+        lock.lock();
+        System.out.println("await time ； "+ System.currentTimeMillis());
+            conditionA.await();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }finally {
+            lock.unlock();
+        }
+    }
+    public  void await_b(){
+        try {
+            lock.lock();
+            System.out.println("await time ； "+ System.currentTimeMillis());
+            conditionB.await();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }finally {
+            lock.unlock();
+        }
+    }
+    public void signal_a(){
+        try {
+            lock.lock();
+            System.out.println("signal time ； "+ System.currentTimeMillis());
+            conditionA.signalAll();
+        } finally {
+            lock.unlock();
+        }
+    }
+    public void signal_b(){
+        try {
+            lock.lock();
+            System.out.println("signal time ； "+ System.currentTimeMillis());
+            conditionB.signalAll();
+        } finally {
+            lock.unlock();
+        }
+    }
+}
+```
+
+* 公平锁和非公平锁
+公平锁: FIFO先进先出，非公平锁：随机获得锁。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ---148---322
 
