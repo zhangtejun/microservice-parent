@@ -69,10 +69,18 @@ public class Test2
         MyThread1 myThread1 = new MyThread1(lock);
         myThread1.start();
         myThread1.join();
-        System.out.println(5);//myThread1 run方法执行完成后，再执行由当前线程继续执行
+        System.out.println(5);// myThread1 run方法执行完成后，再执行由当前线程继续执行
         Thread.sleep(9000);
         System.out.println(5);
     }
 
+    @Test
+    public void b(){
+        Thread thread = new Thread(()-> {
+            System.out.println(11);
+            System.out.println(1);
+        });
+        thread.start();
+    }
 
 }

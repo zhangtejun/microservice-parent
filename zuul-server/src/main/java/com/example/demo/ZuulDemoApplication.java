@@ -11,7 +11,7 @@ import org.springframework.security.config.annotation.web.configuration.WebSecur
 @SpringBootApplication
 @EnableDiscoveryClient
 @EnableZuulProxy
-@EnableOAuth2Sso
+/*@EnableOAuth2Sso*/
 public class ZuulDemoApplication extends WebSecurityConfigurerAdapter{
 
 	public static void main(String[] args) {
