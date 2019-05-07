@@ -1142,14 +1142,63 @@ Zuul 原生Filter
 ##### Zuul 限流
 在Hystrix中，可以通过熔断器来实现，到达某个阈值来对异常流量进行降级处理。其实，除了降级处理，我们还可以进行排队，限流，分流等
 ###### 限流算法
-在Zuul中实现限流最简单的方式是使用Filter加上限流算法。
+在Zuul中实现限流最简单的方式是使用Filter加上限流算法。其中可能考虑到zuul多节点部署，这时需要一个K/V存储工具。单节点 完全可以放到内存中处理。
+**漏桶**
+可以认为就是注水漏水过程，桶以一定速率流出水，以任意速率（入大于出）流入水，当水超过桶流量则丢弃，因为桶容量是不变的，保证了整体的速率。
+当在入小于出的情况下，漏桶则不起作用。溢出的流量可以被利用起来，比如放到一个队列里，做流量排队。
+**令牌桶**
+1. 所有的请求在处理之前都需要拿到一个可用的令牌才会被处理；
+2. 根据限流大小，设置按照一定的速率往桶里添加令牌；
+3. 桶设置最大的放置令牌限制，当桶满时、新添加的令牌就被丢弃或者拒绝；
+4. 请求达到后首先要获取令牌桶中的令牌，拿着令牌才可以进行其他的业务逻辑，处理完业务逻辑之后，将令牌直接删除；
+5. 令牌桶有最低限额，当桶中的令牌达到最低限额的时候，请求处理完之后将不会删除令牌，以此保证足够的限流；
+6. 由于令牌桶中有一定流量，那么就有可能存在一定程度上的流量突发。
+
+**Zuul使用技巧**
+1. 饥饿加载 Zuul内部默认使用Ribbon来调用远程服务，初始化ribbon负载信息，是一种懒加载策略。故可以在配置文件中开启饥饿加载。
+2. 请求体修改：客户端对Zuul发送post请求后，在请求到下游服务前，需要对请求体进行修改，可以通过新增一个PRE类型的Filter对请求体进行修改。
+
+##### 重试机制
+在Spring cloud中有多种发送http请求的方式可以和zuul结合，Ribbon,Feign或者RestTemplate。无论是哪种都可能出现失败的情况，zuul中的重试机制是配合Spring retry
+和Ribbon来使用的。
+```
+<dependency>
+    <groupId>org.springframework.retry</groupId>
+    <artifactId>spring-retry</artifactId>
+</dependency>
+```
+
+**Header传递**
+在使用Zuul构建网关时，在zuul中对请求做了一些处理，需要把处理结果发给下游服务，但是又不能影响原始请求体，
+```java
+public class HeaderDeliverFilter extends ZuulFilter {
+    @Override
+    public Object run() throws ZuulException {
+        RequestContext context = RequestContext.getCurrentContext();
+        context.addZuulRequestHeader("A","B");
+        return null;
+    }
+    // ......
+}
+```
+
+**OpenResty + Lua 动态增加 Zuul 节点**
 
 
+```
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-actuator</artifactId>
+</dependency>
+```
+默认开启2个。`Exposing 2 endpoint(s) beneath base path '/actuator'`。
 
+@RefreshScope注解，修饰的bean都是延迟加载的，只在第一次访问才初始化。刷新bean也是同理。当config-info配置发生改变时，需要先执行`http://localhost:7000/actuator/refresh`
+端点刷新，即**手动刷新配置中心**。
 
-
-
-
+自动刷新配置中心（Spring cloud bus ）
+大致流程：用户更新配置文件时，检测到git hook变化，触发git hook配置的地址，config serve 接收到消息并发布消息，Bus将消息发送到client,client接收到消息后，
+会重新发送请求加载配置信息。
 
 
 

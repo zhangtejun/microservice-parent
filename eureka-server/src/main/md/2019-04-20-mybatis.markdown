@@ -1,0 +1,1177 @@
+---
+layout: post
+title:  "mybatis"
+date:   2019-04-20 10:53:02
+author: zhangtejun
+categories: JDBC
+---
+##### JDBC实现查询分析
+通过JDBC查询数据库数据，一般需要以下步骤：
+* 加载JDBC驱动
+* 建立并获取数据库连接
+* 通过数据库连接创建 JDBC Statements 对象
+* 设置SQL语句的传入参数
+* 执行SQL语句并获得查询结果
+* 对查询结果进行转换处理并将处理结果返回
+* 释放相关资源（关闭Connection，关闭Statement，关闭ResultSet）
+
+JDBC（Java Data Base Connectivity,java数据库连接）是一种用于执行SQL语句的Java API，可以为多种关系数据库提供统一访问，
+它由一组用Java语言编写的类和接口组成。JDBC提供了一种基准，据此可以构建更高级的工具和接口，使数据库开发人员能够编写数
+据库应用程序，JDBC实现了所有这些面向标准的目标并且具有简单，严格类型定义且高性能实现的接口。
+
+>JDBC API
+>>JDBC API由2个部分组成，一个是核心api,位于java.sql包下，它具有可滚动的结果集,批量更新的实现类。另一个是扩展 api,位于javax.sql下，具有访问JNDI资源，
+>>分布式事务等实现类。
+>>java.sql.DriverManager: 完成驱动程序的装载和建立新的数据库连接。
+>>java.sql.Connection：对某一指定数据库的连接。
+>>java.sql.Statement：用于管理在某一指定数据库上的SQL语句执行。用于执行一条静态的sql语句并接收产生的结果。
+>>java.sql.PreparedStatement：接口,继承Statement，用于对预编译sql语句的执行。
+>>java.sql.ResultSet：一条sql语句的执行结果。
+>>java.sql.CallableStatement：继承Statement接口，用以对一个数据库存储过程的执行。
+>>java.sql.Types：区分sql类型的常量。
+
+* Connection 连接对象
+    * 通过此对象可以获取PreparedStatement对象或Statement语句对象，通过语句对象可以对数据库进行查询或更新操作。
+    * Connection常用方法
+        * close() 完成关闭连接
+        * commit() 完成提交
+        * rollback() 完成回滚
+        * createStatement() 返回Statement对象
+        * prepareStatement(String sql) sql是要执行的SQL语句,返回PrepareStatement对象。
+        * setAutoCommit(Boolean autoCommit) 用于设置是否自动提交。
+* Statement对象
+    * 通过Connection获取到Statement对象，再通过Statement执行相关读取和更新操作。该对象有2种实现，CallableStatement和PreparedStatement
+    PreparedStatement主要用来预编译SQL语句，主要用来提高程序效率，CallableStatement继承PreparedStatement接口用于存储过程。
+
+    ```java
+        // 获取Statement对象
+         Statement st = connection.createStatement();
+         // 查询sql，返回ResultSet对象
+         ResultSet resultSet1 = st.executeQuery(sql);
+         // 操作sql，返回更新的行数
+         int i = st.executeUpdate(sql);
+         // 操作sql，返回boolean 表示是否返回了ResultSet对象
+         boolean execute = st.execute(sql);
+         // 获取ResultSet对象
+         ResultSet resultSet3 = st.getResultSet();
+    ```
+
+* PrepareStatement对象
+    * 除普通的Statement对象外，还有预编译的PreparedStatement对象，就是在创建语句对象时，将SQL语句一起执行编译，如何写入缓存
+    只保留动态参数输入，这样执行相同sql操作时，不用总是对查询语句进行编译，而只是修改其参数即可。
+
+    ```java
+        // 获取Statement对象
+         PreparedStatement preparedStatement = connection.prepareStatement(sql);
+         // 查询sql，返回ResultSet对象
+         ResultSet resultSet1 = st.executeQuery();
+         // 操作sql，返回更新的行数
+         int i = st.executeUpdate();
+         // 操作sql，返回boolean 表示是否返回了ResultSet对象
+         boolean execute = st.execute();
+         // 获取ResultSet对象
+         ResultSet resultSet3 = st.getResultSet();
+    ```
+
+* ResultSet结果集对象
+    * 每条记录代表一个数据库行，通常可以通过Statement对象的execute()方法执行一个查询，获取其结果集，有些场合，需要同时返回多个结果集对象，
+    需要调用getMoreResultSet()方法来对结果集集合进行遍历。
+
+
+##### JDBC操作数据库
+数据库程序通常被称为CURD程序，包括创建，更新，读取查询，删除等逻辑操作。
+
+`String url = "jdbc:mysql://115.159.187.60:3306/vplusdb";`,jdbc:<protocol>//<databasename>，jdbc代表指定协议，<protocol>代表数据库连接机制的驱动，<databasename>为数据库地址
+
+##### PrepareStatement预编译对象
+PrepareStatement对象和Statement对象所产生的结果是相同的，但是执行过程不同。使用Statement对象，每次执行的时候，数据库都要重新编译，执行一遍SQL命令
+，而PrepareStatement对象，编译程序的时候就对SQL进行了编译，并写入缓存。这样再执行相同操作的时候可以提升效率（例如循环）。
+
+在使用 PrepareStatement 时，数据库连接没有关闭的情况下，可以批量执行sql语句，
+
+*  PrepareStatement 传递参数
+    ```
+    // parameterIndex 参数序号，x 输入数据对象，targetSqlType 指定被送到数据库中的SQL数据类型
+    void setObject(int parameterIndex, Object x, int targetSqlType)throws SQLException;
+    ```
+
+##### CallableStatement对象
+JDBC可以使用CallableStatement对象直接调用数据库的存储过程，
+```java
+CallableStatement callableStatement = connection.prepareCall("{call getName}");
+// 注册OUT参数
+callableStatement.registerOutParameter(1,Types.TINYINT);
+callableStatement.registerOutParameter(2,Types.DECIMAL,3);
+
+//设置IN参数
+callableStatement.setInt(1,1);
+
+// INOUT参数
+callableStatement.setInt(1,1);
+callableStatement.registerOutParameter(1,Types.TINYINT);
+
+// 调用存储过程的executeQuery
+callableStatement.executeQuery();
+// 获取OUT参数值
+byte aByte = callableStatement.getByte(1);
+BigDecimal bigDecimal = callableStatement.getBigDecimal(2, 2);
+```
+
+##### BatchUpdate 对象
+一般情况下，sql是逐条执行的，有的时候需要依次执行多条。
+BatchUpdate 对象用于批量更新数据，callableStatement，PrepareStatement，Statement都可以成批更新。
+```java
+//获取数据库连接
+Connection connection = DriverManager.getConnection(url, user, pass);
+connection.setAutoCommit(false);//设置事务不自动提交
+// 获取Statement对象
+Statement st = connection.createStatement();
+// sql 只支持INSET，UPDATE，DELETE
+st.addBatch("sql");
+st.addBatch("sql");
+// 批量提交
+st.executeBatch();
+```
+PrepareStatement 对象
+```java
+PreparedStatement preparedStatement = connection.prepareStatement(sql);
+//设置传入参数
+preparedStatement.setString(1, "1");
+// 加入批量
+preparedStatement.addBatch();
+//设置传入参数
+preparedStatement.setString(1, "11");
+// 加入批量
+preparedStatement.addBatch();
+```
+
+##### Rowset行集合对象
+Rowset行集合对象和JavaBeans类似，包含一个行的集合，Rowset提供一个类似javaBeans的属性集合，这使得行集实例
+可以连接到一个数据源并从该数据源获取到一个行数据的集合。
+
+
+##### JDBC 事务
+在jdbc的数据库操作中，一项事务是由一个或多个操作所组成的一个不可分割的工作单元。所有的标准JDBC驱动都有提供事务机制，
+JDBC事务包含3给方面：1.自动提交，2.事务隔离级别，3.存储点。和一个数据库关联的事务称为单独事务，和多个关联的称为分布式事务。
+
+>事务隔离级别
+在数据库并发的操作过程中可能出现3种不确定的情况
+* 脏读取（DirtyReads）: 一个事务读取了另一个并行事务未提交的数据。
+* 不可重复读取：一个事务再次读取之前的数据时，得到的数据不一致，数据被另一个已提交的事务修改。
+* 幻读：一个事务重新查询，返回的记录包含了因为其他最近提交的事务而产生的新记录。
+
+事务隔离级别的定义和使用就是为了避免这种不确定的情况。
+
+在标准SQL规范中，针对以上3种情况，定义了4给事务隔离级别
+* 读未提交（Read Uncommitted）
+* 读提交（Read Committed）大多数主流数据库默认事务等级，保证一个事务不会读取到另一个事务已修改但是未提交的数据。
+* 可重复读取（Repeatable Read）
+* 序列化（Serializable）提供严格的事务隔离。它要求事务序列化执行，事务只能一个接着一个地执行，不能并发执行。
+
+JDBC对事务的隔离级别定义如下：
+* TRANSACTION_NONE 不支持事务
+* TRANSACTION_READ_UNCOMMITTED 在提交事务前，一个事务可以看到另一个事务的变化，脏读取，不可重复读取，幻读均允许。
+* TRANSACTION_READ_COMMITTED 读取未提交的数据是不允许的，这个级别防止了脏读和幻读，允许不可重复读取。
+* TRANSACTION_REPEATABLE_READ 事务保证再次读取相同的数据而不会失败，这个级别防止了脏读和不可重复读取，允许幻读。
+* TRANSACTION_SERIALIZABLE
+
+##### Hibernate
+Hibernate是一种ORM框架，在java和关系数据库之间建立某种映射，以实现直接存取java对象。ORM就是在JDBC技术的基础上，能够调用程序自动生成SQL语句。
+
+Hibernate是ORM框架,与数据库打交道，在保存数据时，先通过HibernateSessionFactory开启一个会话（作用相当于JDBC的Connection）,如何开启一个Transaction
+事务（相当于JDBC中的事务）,接着执行代码，最后提交事务，关闭session。其工作和JDBC一样，因此流程也基本一样。Hibernate保存实体非常简单，执行`session.persist(Object obj)`即可。
+
+###### Configuration对象
+Configuration对象负责管理Hibernate的配置信息，应用程序通常只创建一个Configuration实例，并用它来创建SessionFactory实例。
+```java
+Configuration c = new Configuration();
+SessionFactory sessionFactory = c.buildSessionFactory();
+```
+SessionFactory是一个线程安全的session工厂类，可以为不同的线程生成不同的session，其维护着session相关的资源，包括数据库连接池，缓存数据等。
+SessionFactory接口负责初始化Hibernate,在初始化时会创建一个Configuration类的实例，该实例加载配置，并负责创建session对象，当操作多个数据库时，
+需要为每一个数据库指定一个SessionFactory。
+
+session接口是Hibernate运作的核心，对象的生命周期，事务的管理以及数据库的存取都和它密切相关。
+在session管理的方案中，ThreadLoacl得到了大量的使用，JVM为每个运行的线程绑定了私有的本地实例存取空间，为多线程并发访问提供一种隔离机制。
+
+session由sessionFactory创建，由于SessionFactory是线程安全的，多个线程同时访问SessionFactory不会出现数据共享问题。
+
+session是非线程安全的，在Hibernate中使用HibernateSessionFactory（连接一个数据库只需要一个）来管理session,使用ThreadLocal变量来解决。
+
+Transaction代表一次事务，事务内可以包含若干数据修改，事务提交后才生效，Hibernate事务不同于数据库事务，Hibernate可能使用各种机制保证事务性，
+包括JTA,第三方事务管理，数据库事务等。
+
+org.hibernate.Transaction接口，是封装底层事务的接口，底层事务包括JDBC API,JTA,CORBA API。
+
+####实体类映射
+从java角度来说，实体类就是普通的java封装类，实体类一般有Id,普通属性，集合属性等，分别对应数据库的主键，普通列，外键。
+以下注解均是JPA标准注解，位于`javax.persistence.*;，org.persistence.*`下的注解仅用于对其的补充
+```java
+@Data
+@Entity  //表示该类纳入Hibernate管理，能够被持久化
+@Table(name = "table") //指定库名
+public class EXxxntity{
+    @Id //指定该列为主键
+    @GeneratedValue(strategy = GenerationType.AUTO)
+    private Long id;
+
+    @Column(name = "b")
+    private String b;
+}
+```
+
+实体类最好有主键列，并且有get/set方法，主键尽可能使用可以为null值的类型，比如Long,Integer而不是long,int,因为如果主键为null,则表示该实体还没有保存到数据库
+是一个临时（Transient）状态，而int等原始类型则不具备该功能。
+
+@GeneratedValue注解的strategy属性提供四种值:
+* -AUTO主键由程序控制, 是默认选项 ,不设置就是这个
+* -IDENTITY 主键由数据库生成, 采用数据库自增长, Oracle不支持这种方式
+* -SEQUENCE 通过数据库的序列产生主键, MYSQL  不支持
+* -Table 提供特定的数据库产生主键, 该方式更有利于数据库的移植
+
+临时属性映射：必须使用注解@Transient标注，既可以配置在临时属性上，也可以配置在其get/set方法上。
+
+##### Hibernate的缓存和回调机制
+Hibernate提供2级缓存，第一级是session级别的缓存，它属于事务范围的缓存，这一缓存由Hibernate管理，一般情况下无需干预。
+第二级缓存是SessionFactory缓存，它属于进程和集群范围内的缓存，又可以分为内置缓存和外置缓存，这一级别缓存可以配置和更改，并且可以动态加载和卸载。
+
+2个级别缓存的区别：
+* 存放数据的形式不同：一级缓存的数据是相互关联的持久化对象，二级存放的是对象的散装数据。
+* 缓存范围不同：一级是事务范围，每个事务单独一个缓存，二级是集群和进程范围，缓存被同一个进程和集群共享。
+* 并发策略不同：一级不存在并发，二级缓存需要提供适当的并发策略来保证事务的隔离级别。
+* 数据过期策略不同：一级没有提供数据过期策略，除非应用程序显示清空缓存或对象，二级缓存必须提供数据过期策略。
+* 物理存储介质不同：一级是内存，二级是内存和硬盘。对象的散装数据首先存放在内在的缓存中，当内存达到上限时，将其他的写入硬盘。
+* 缓存的软件实现不同：一级缓存通过session来实现，二级缓存由第三方提供（SessionFactory）,Hibernate仅提供缓存适配器（CacheProvider）,用于把特定的缓存插件集成到Hibernate中。
+* 启用缓存方式不同：当应用程序通过session接口来执行保存，更新，删除加载和查询数据库时，hibernate会启用一级缓存，把数据库数据以对象的形式复制到缓存中
+  如果实例经常被读，而很少被修改，就可以考虑二级缓存。
+* 用户管理缓存方式不同：一级介质是内存，容量有限，二级则可以存放大量数据
+
+一级缓存的管理：
+>当应用程序调用session的save(),update(),saveOrUpdate(),get(),load()或者list(),iterate(),filter()方法时，如果在session缓存中还不存在的对象，会被加入到一级缓存
+>中，当清理缓存时，Hibernate会根据缓存中对象的状态来同步数据库。提供2个方法来管理：evict（Object obj）清理特定持久化对象和clear()清理全部持久化对象
+
+二级缓存的管理：
+>二级缓存是一个可插拔的缓存插件，它由sessionFactory负责管理，二级缓存是可选的，可以在每个类或者集合的粒度上配置二级缓存。
+
+
+Hibernate回调机制：
+>在某些情况下，需要对实体类的增删改查操作进行捕获并进行一些操作，这可以通过触发器来实现，触发器的执行对Hibernate session是透明的，因此会带来很多问题
+>为决绝这一问题，Hibernate提供了专门用于捕捉监听实体CURD操作接口。通过这些结果实现类似触发器功能。在Hibernate中，有Lifecycle,Validatable,Interceptor.
+
+>Lifecycle
+>>Hibernate通过实现Lifecycle接口执行回调，实体对象通过实现Lifecycle接口，就可在特定的持久化阶段执行特定的处理过程。
+>>```java
+>>public interface Lifecycle {
+>>
+>>     // 在实体对象执行save/insert操作之前触发
+>>    public boolean onSave(Session session) throws CallbackException;
+>>
+>>      // 在session.update()执行之前触发
+>>      public boolean onUpdate(Session session) throws CallbackException;
+>>
+>>     // 在实体对象执行delete操作之前触发
+>>     public boolean onDelete(Session session) throws CallbackException;
+>>
+>>     // 在实体对象加载之后触发
+>>     public void onLoad(Session session) throws CallbackException;
+>>    }
+>>```
+
+>Validatable接口
+>>通过实现Validatable接口执行数据验证，以确保数据的合法性。validate方法执行数据本身的逻辑校验，在实体对象的生命周期中可能被多次调用，故在这里不要实现数据的业务逻辑校验。
+>>```java
+>>public interface Validatable {
+>>   public void validate() throws ValidationFailure;
+>> }
+>>```
+
+>Interceptor接口
+>>Hibernate提供的Lifecycle接口和Validatable接口以及使用方法，这两个方法定义了一种自然的回调机制。要实现对实体的回调拦截，
+>>相应的实体对象必须实现这两个Hibernate原生接口，这就使代码的可移植性大大下降。为了解决这一问题，Hibernate又提供了Interceptor接口，
+>>为持久化事件的捕获和处理提供了一个非入侵性的解决方案，Interceptor接口通过设置注入来实现持久化事件的捕获和处理，这是典型的IOC（控制反转）设计思想
+```java
+public interface Interceptor {
+    // 对象初始化之前调用 这时实体类的属性均为null
+    boolean onLoad(Object var1, Serializable var2, Object[] var3, String[] var4, Type[] var5) throws CallbackException;
+    // 当使用session.flush()进行数据检测时，如果实体类对象为脏读，则调用该方法
+    boolean onFlushDirty(Object var1, Serializable var2, Object[] var3, Object[] var4, String[] var5, Type[] var6) throws CallbackException;
+    // 实体类被保存时调用
+    boolean onSave(Object var1, Serializable var2, Object[] var3, String[] var4, Type[] var5) throws CallbackException;
+    // 当session删除一个实体时调用该方法
+    void onDelete(Object var1, Serializable var2, Object[] var3, String[] var4, Type[] var5) throws CallbackException;
+
+    void onCollectionRecreate(Object var1, Serializable var2) throws CallbackException;
+
+    void onCollectionRemove(Object var1, Serializable var2) throws CallbackException;
+
+    void onCollectionUpdate(Object var1, Serializable var2) throws CallbackException;
+    // session执行flush方法前调用
+    void preFlush(Iterator var1) throws CallbackException;
+    // session执行flush方法后，所有的sql语句都执行完成后调用
+    void postFlush(Iterator var1) throws CallbackException;
+
+    Boolean isTransient(Object var1);
+
+    int[] findDirty(Object var1, Serializable var2, Object[] var3, Object[] var4, String[] var5, Type[] var6);
+
+    Object instantiate(String var1, EntityMode var2, Serializable var3) throws CallbackException;
+
+    String getEntityName(Object var1) throws CallbackException;
+
+    Object getEntity(String var1, Serializable var2) throws CallbackException;
+
+    void afterTransactionBegin(Transaction var1);
+
+    void beforeTransactionCompletion(Transaction var1);
+
+    void afterTransactionCompletion(Transaction var1);
+
+    /** @deprecated */
+    @Deprecated
+    String onPrepareStatement(String var1);
+}
+```
+Interceptor不需要实体对象来实现，而是开发人员定义一个实现Interceptor接口的类，然后在创建session时，通过将Interceptor对象设置到所创建的
+session，这样 通过该session来操作实体对象，都会具有持久化动作的回调功能。
+
+Hibernate中Interceptor对象共有两种用法：
+* SessionFactory.openSession(Interceptor)：这种用法为每个session实例分配一个拦截Interceptor，这个拦截接口对象，存放在session范围内，为每个session实例所专用。
+* Configuration.setInterceptor(Interceptor)：这种用法为SessionFactory实例分配一个Interceptor实例，这个Interceptor实例存放在SessionFactory范围内，被每个session实例所共享。
+
+##### ibatis
+ibatis是一种数据映射器（data mapper），是一种半自动化的ORM实现。
+ibatis也有一个xml映射文件，但是并不是通过Java实体类和数据库表字段进行关联，而是通过SQL语句来描述。
+
+ibatis和Hibernate区别：
+* 都是ORM的实现，ibatis在处理大型的，关系复杂的数据上更有优势，
+* 维护也优于Hibernate
+* 系统调优方面：Hibernate可以制定合理的缓存策略，在延迟加载方面处理得较好，有较为合理的Session管理机制，便于批量抓取，同时有合理的O/R映射设计。Mybatis在调优方面，同样有
+  Session机制和二级缓存，同时还可以对SQL进行优化设计；Hibernate一般是查询数据库的所有字段，如果指定字段查询，程序较为繁琐，而Mybatis的SQL是手动编写的，所以可以按需求指定查询的字段。
+* 缓存机制方面：Hibernate的一级缓存是Session缓存，一级缓存是与Session的生命周期相关的。而它的二级缓存是SessionFactory级的缓存其中可分为内置缓存和外置缓存，其中的内置缓存中存放了关于SessionFactory
+  对象的一些集合属性包含的数据，包括映射元素据及预定SQL语句等；而Mybatis一般也可分为二级缓存，一级缓存是 SqlSession 级别的缓存二级缓存是 mapper 级别的缓存，多个 SqlSession 共享，而它默认状态是开启一级缓存
+
+使用ibatis原因：
+* 系统的部分和全部数据来自现有数据库，出于安全等方面考虑，只对开发团队提供几条select sql 以用来获取数据，具体表结构不公开。
+* 系统数据量大，需要高度优化sql来达到性能要求等
+
+##### MyBatis （版本: 3.5.1）
+每个MyBatis应用程序主要都是使用SqlSessionFactory实例的，一个SqlSessionFactory实例可以通过SqlSessionFactoryBuilder获得。
+SqlSessionFactoryBuilder可以从一个xml配置文件或者一个预定义的配置类的实例获得,每个数据库对应一个 SqlSessionFactory 实例。
+
+**配置解析**
+在mybatis初始化过程中，会加载mybatis-config.xml配置文件，映射配置文件以及mapper接口的注解信息，解析会形成相应的对象保存在Configuration
+对象中，例如`<resultMap>`节点（即ResultSet的映射）会被解析成ResultMap对象，节点`<result>`(属性映射)会被解析成ResultMapping对象，之后
+可以通过Configuration获取到SqlSessionfactory对象。
+
+**从 XML 中构建 SqlSessionFactory**
+
+从 XML 文件中构建 SqlSessionFactory 的实例非常简单，建议使用类路径下的资源文件进行配置。 但是也可以使用任意的输入流（InputStream）实例，
+包括字符串形式的文件路径或者 file:// 的 URL 形式的文件路径来配置。MyBatis 包含一个名叫 Resources 的工具类，它包含一些实用方法，可使从 classpath 或其他位置加载资源文件更加容易。
+```java
+public static void main(String[] args) throws IOException {
+    String resource = "test/mybatis-config.xml";
+    InputStream inputStream = Resources.getResourceAsStream(resource);
+    SqlSessionFactory sqlSessionFactory = new SqlSessionFactoryBuilder().build(inputStream);
+    // 从 SqlSessionFactory 中获取 SqlSession
+    // SqlSession 完全包含了面向数据库执行 SQL 命令所需的所有方法。你可以通过 SqlSession 实例来直接执行已映射的 SQL 语句
+    SqlSession session = sqlSessionFactory.openSession();
+    try {
+        // 1.
+        List blog = session.selectList("com.example.demo.AAAA.selectAllLogs");
+        blog.stream().forEach(System.out::println);
+
+        // 2.现在有了一种更简洁的方式,可以避免字符串字面值以及强制类型转换
+        AAAA mapper = session.getMapper(AAAA.class);
+        List<HashMap> hashMaps = mapper.selectAllLogs();
+        hashMaps.stream().forEach(System.out::println);
+    } finally {
+        session.close();
+    }
+    // 基于Java 注解来配置
+    // 使用注解来映射简单语句会使代码显得更加简洁，然而对于稍微复杂一点的语句，Java 注解就力不从心了，并且会显得更加混乱。
+}
+```
+**SqlSessionFactoryBuilder**
+
+这个类可以被实例化、使用和丢弃，一旦创建了 SqlSessionFactory，就不再需要它了。 因此 SqlSessionFactoryBuilder 实例的最佳作用域是方法作用域（也就是局部方法变量）。
+你可以重用 SqlSessionFactoryBuilder 来创建多个 SqlSessionFactory 实例，但是最好还是不要让其一直存在，以保证所有的 XML 解析资源可以被释放给更重要的事情。
+
+SqlSessionFactoryBuilder 有五个 build() 方法，每一种都允许你从不同的资源中创建一个 SqlSession 实例。
+```java
+SqlSessionFactory build(InputStream inputStream)
+SqlSessionFactory build(InputStream inputStream, String environment)
+SqlSessionFactory build(InputStream inputStream, Properties properties)
+SqlSessionFactory build(InputStream inputStream, String env, Properties props)
+SqlSessionFactory build(Configuration config)
+```
+
+
+**SqlSessionFactory**
+它可以从 XML、注解或手动配置 Java 代码来创建 SqlSessionFactory。
+SqlSessionFactory 一旦被创建就应该在应用的运行期间一直存在，没有任何理由丢弃它或重新创建另一个实例。 使用 SqlSessionFactory 的最佳实践是在应用运行期间不要重复创建多次，
+多次重建 SqlSessionFactory 被视为一种代码“坏味道（bad smell）”。因此 SqlSessionFactory 的最佳作用域是应用作用域。 有很多方法可以做到，最简单的就是使用单例模式或者静态单例模式。
+
+SqlSessionFactory 有六个方法创建 SqlSession 实例
+```java
+SqlSession openSession()
+SqlSession openSession(boolean autoCommit)
+SqlSession openSession(Connection connection)
+SqlSession openSession(TransactionIsolationLevel level)
+SqlSession openSession(ExecutorType execType,TransactionIsolationLevel level)
+SqlSession openSession(ExecutorType execType)
+SqlSession openSession(ExecutorType execType, boolean autoCommit)
+SqlSession openSession(ExecutorType execType, Connection connection)
+Configuration getConfiguration();
+```
+默认的 openSession()方法没有参数，它会创建有如下特性的 SqlSession：
+* 会开启一个事务（也就是不自动提交）。
+* 将从由当前环境配置的 DataSource 实例中获取 Connection 对象。
+* 事务隔离级别将会使用驱动或数据源的默认设置。
+* 预处理语句不会被复用，也不会批量处理更新。
+
+**SqlSession**
+
+`每个线程`都应该有它自己的 SqlSession 实例。SqlSession 的实例不是线程安全的，因此是不能被共享的，所以它的最佳的作用域是请求或方法作用域。 绝对不能将 SqlSession 实例的引用放在一个类的静态域，
+甚至一个类的实例变量也不行。 也绝不能将 SqlSession 实例的引用放在任何类型的托管作用域中，比如 Servlet 框架中的 HttpSession。 如果你现在正在使用一种 Web 框架，要考虑 SqlSession 放在一个和
+HTTP 请求对象相似的作用域中。 换句话说，每次收到的 HTTP 请求，就可以打开一个 SqlSession，返回一个响应，就关闭它。 这个关闭操作是很重要的，你应该把这个关闭操作放到 finally 块中以确保每次都能执行关闭。
+```
+SqlSession session = sqlSessionFactory.openSession();
+try {
+  // 你的应用逻辑代码
+} finally {
+  session.close();
+}
+```
+可以通过这个接口来执行命令，获取映射器和管理事务。
+
+当 Mybatis 与一些依赖注入框架（如 Spring 或者 Guice）同时使用时，SqlSessions 将被依赖注入框架所创建，所以你不需要使用 SqlSessionFactoryBuilder 或者 SqlSessionFactory
+
+**类型处理器（typeHandlers）**
+无论是 MyBatis 在预处理语句（PreparedStatement）中设置一个参数时，还是从结果集中取出一个值时， 都会用类型处理器将获取的值以合适的方式转换成 Java 类型。下表描述了一些默认的类型处理器。
+提示 从 3.4.5 开始，MyBatis 默认支持 JSR-310（日期和时间 API） 。
+你可以重写类型处理器或创建你自己的类型处理器来处理不支持的或非标准的类型。 具体做法为：实现 org.apache.ibatis.type.TypeHandler 接口，
+或继承一个很便利的类 org.apache.ibatis.type.BaseTypeHandler， 然后可以选择性地将它映射到一个 JDBC 类型。比如：
+
+**对象工厂（objectFactory）**
+MyBatis 每次创建结果对象的新实例时，它都会使用一个对象工厂（ObjectFactory）实例来完成。 默认的对象工厂需要做的仅仅是实例化目标类，要么通过默认构造方法，要么在参数映射存在的时候通过参
+数构造方法来实例化。 如果想覆盖对象工厂的默认行为，则可以通过创建自己的对象工厂来实现。
+
+**插件（plugins）**
+MyBatis 允许你在已映射语句执行过程中的某一点进行拦截调用。默认情况下，MyBatis 允许使用插件来拦截的方法调用包括：
+* Executor (update, query, flushStatements, commit, rollback, getTransaction, close, isClosed)
+* ParameterHandler (getParameterObject, setParameters)
+* ResultSetHandler (handleResultSets, handleOutputParameters)
+* StatementHandler (prepare, parameterize, batch, update, query)
+这些类中方法的细节可以通过查看每个方法的签名来发现，或者直接查看 MyBatis 发行包中的源代码。 如果你想做的不仅仅是监控方法的调用，那么你最好相当了解要重写的方法的行为。
+因为如果在试图修改或重写已有方法的行为的时候，你很可能在破坏 MyBatis 的核心模块。 这些都是更低层的类和方法，所以使用插件的时候要特别当心。
+
+通过 MyBatis 提供的强大机制，使用插件是非常简单的，只需实现 Interceptor 接口，并指定想要拦截的方法签名即可
+```
+// ExamplePlugin.java
+@Intercepts({@Signature(
+  type= Executor.class,
+  method = "update",
+  args = {MappedStatement.class,Object.class})})
+public class ExamplePlugin implements Interceptor {
+  public Object intercept(Invocation invocation) throws Throwable {
+    return invocation.proceed();
+  }
+  public Object plugin(Object target) {
+    return Plugin.wrap(target, this);
+  }
+  public void setProperties(Properties properties) {
+  }
+}
+
+<!-- mybatis-config.xml -->
+<plugins>
+  <plugin interceptor="org.mybatis.example.ExamplePlugin">
+    <property name="someProperty" value="100"/>
+  </plugin>
+</plugins>
+```
+上面的插件将会拦截在 Executor 实例中所有的 “update” 方法调用， 这里的 Executor 是负责执行低层映射语句的内部对象。
+
+**事务管理器（transactionManager）**
+在 MyBatis 中有两种类型的事务管理器（也就是 `type=”[JDBC|MANAGED]”`）：
+* JDBC – 这个配置就是直接使用了 JDBC 的提交和回滚设置，它依赖于从数据源得到的连接来管理事务作用域。
+* MANAGED – 这个配置几乎没做什么。它从来不提交或回滚一个连接，而是让容器来管理事务的整个生命周期（比如 JEE 应用服务器的上下文）。
+  默认情况下它会关闭连接，然而一些容器并不希望这样，因此需要将 closeConnection 属性设置为 false 来阻止它默认的关闭行为。
+  ```
+  <transactionManager type="MANAGED">
+    <property name="closeConnection" value="false"/>
+  </transactionManager>
+  ```
+如果你正在使用 Spring + MyBatis，则没有必要配置事务管理器， 因为 Spring 模块会使用自带的管理器来覆盖前面的配置。
+
+**本地缓存**
+Mybatis 使用到了两种缓存：本地缓存（local cache）和二级缓存（second level cache）。
+
+每当一个新 session 被创建，MyBatis 就会创建一个与之相关联的本地缓存。任何在 session 执行过的查询语句本身都会被保存在本地缓存中，那么，相同的查询语句和相同的参数所产生的更改就不会二度影响数据库了。本地缓存会被增删改、提交事务、关闭事务以及关闭 session 所清空。
+
+默认情况下，本地缓存数据可在整个 session 的周期内使用，这一缓存需要被用来解决循环引用错误和加快重复嵌套查询的速度，所以它可以不被禁用掉，但是你可以设置 localCacheScope=STATEMENT 表示缓存仅在语句执行时有效。
+
+注意，如果 localCacheScope 被设置为 SESSION，那么 MyBatis 所返回的引用将传递给保存在本地缓存里的相同对象。对返回的对象（例如 list）做出任何更新将会影响本地缓存的内容，进而影响存活在 session 生命周期中的缓存所返回的值。因此，不要对 MyBatis 所返回的对象作出更改，以防后患。
+
+
+>SQL执行
+>>SQL的执行涉及多个组件，比如Executor,StatementHandler，ParameterHandler，ResultSetHandler等。Executor主要维护一级和二级缓存，并提供事务管理的相关操作
+>>它会将数据库的相关操作委托给StatementHandler完成。StatementHandler首先通过ParameterHandler完成sql语句的实参绑定,如何通过java.sql.Statement对象执行
+>>sql语句并得到结果集，最后通过ResultSetHandler完成结果的映射并返回。
+![]({{ site.mybatis1 | prepend: site.baseurl }})
+>>
+
+**解析器模块**
+xml的常见解析方式有3种：DOM（document Object model）解析方式，SAX（Simple API for XML）以及jdk1.6支持StAX(Streaming API For XML)
+优缺点：
+DOM易编程，可以根据需要在各树形结点间导航，将整个XML载入内存，文件较大时，耗服务器资源。
+SAX基于事件模型的解析方式，只需要加载一部分到内存中，缺点是不存储xml结构，需要开发人员自己维护结构，当结构复杂时，会增加编码难度，
+解析XML也只能单向进行。
+StAX和SAX类似，提供2种不同的抽象，1是基于指针的API,这是底层的,效率高但是抽象程度低。另一种是基于迭代器的API,效率略低但抽象程度高。
+
+Xpath是一种为查询XML文档而设计的语言，它可以配合DOM解析XML。
+
+Mybatis提供XPathParser类封装Xpath,Document,EntityResolver。
+```java
+public class XPathParser {
+  private Document document; // Document对象
+  private boolean validation;// 是否开启验证
+  private EntityResolver entityResolver; // 用于加载本地DTD文件
+  private Properties variables; // mybatis-config.xml中<properties>标签定义的键和值
+  private XPath xpath;// Xpath对象
+```
+EntityResolver的核心方法是`resolveEntity (String publicId, String systemId)`,其实现为XMLMapperEntityResolver
+
+
+##### 动态代理
+JDK动态代理的入口是`Proxy.newProxyInstance(ClassLoader loader,Class<?>[] interfaces,InvocationHandler h)`这个静态方法。
+参数分别是加载动态生成的代理类的类加载器，业务类实现的接口，InvocationHandler对象（需要开发人员开发）。
+```java
+public static Object newProxyInstance(ClassLoader loader,Class<?>[] interfaces,InvocationHandler h)throws IllegalArgumentException
+    {
+        Objects.requireNonNull(h);
+
+        final Class<?>[] intfs = interfaces.clone();// clone接口类对象数组
+        final SecurityManager sm = System.getSecurityManager(); // 权限检查
+        if (sm != null) {
+            checkProxyAccess(Reflection.getCallerClass(), loader, intfs);
+        }
+
+        /*
+         * Look up or generate the designated proxy class.
+         */qq
+        Class<?> cl = getProxyClass0(loader, intfs);// 查找或者是生成一个特定的代理类对象
+
+        /*
+         * Invoke its constructor with the designated invocation handler.
+         */
+        try {
+            if (sm != null) {
+                checkNewProxyPermission(Reflection.getCallerClass(), cl);
+            }
+
+            final Constructor<?> cons = cl.getConstructor(constructorParams);
+            final InvocationHandler ih = h;
+            if (!Modifier.isPublic(cl.getModifiers())) {
+                AccessController.doPrivileged(new PrivilegedAction<Void>() {
+                    public Void run() {
+                        cons.setAccessible(true);
+                        return null;
+                    }
+                });
+            }
+            return cons.newInstance(new Object[]{h});
+        } catch (IllegalAccessException|InstantiationException e) {
+            throw new InternalError(e.toString(), e);
+        } catch (InvocationTargetException e) {
+            Throwable t = e.getCause();
+            if (t instanceof RuntimeException) {
+                throw (RuntimeException) t;
+            } else {
+                throw new InternalError(t.toString(), t);
+            }
+        } catch (NoSuchMethodException e) {
+            throw new InternalError(e.toString(), e);
+        }
+    }
+
+//查找或者是生成一个特定的代理类对象
+private static Class<?> getProxyClass0(ClassLoader loader,Class<?>... interfaces) {
+        if (interfaces.length > 65535) {// 接口数限制
+            throw new IllegalArgumentException("interface limit exceeded");
+        }
+
+        // 如果指定的类加载器中已经创建了实现指定接口的代理类，则查找缓存，
+        // 否则通过ProxyClassFactory创建实现指定接口的代理类
+        return proxyClassCache.get(loader, interfaces);
+    }
+
+public V get(K key, P parameter) {
+    Objects.requireNonNull(parameter);
+    expungeStaleEntries();// 删除过时的缓存
+    Object cacheKey = CacheKey.valueOf(key, refQueue);// 生成缓存key对象实例，如果key = null，cacheKey = new Object();
+    // lazily install the 2nd level valuesMap for the particular cacheKey
+    // 从缓存map中读取指定cacheKey的缓存数据valuesMap
+    ConcurrentMap<Object, Supplier<V>> valuesMap = map.get(cacheKey);
+    if (valuesMap == null) {
+        ConcurrentMap<Object, Supplier<V>> oldValuesMap
+            = map.putIfAbsent(cacheKey,
+                              valuesMap = new ConcurrentHashMap<>());
+        if (oldValuesMap != null) {
+            valuesMap = oldValuesMap;
+        }
+    }
+    // create subKey and retrieve the possible Supplier<V> stored by that
+    // subKey from valuesMap
+    Object subKey = Objects.requireNonNull(subKeyFactory.apply(key, parameter));
+    Supplier<V> supplier = valuesMap.get(subKey);
+    Factory factory = null;
+
+    while (true) {
+        if (supplier != null) {
+            // supplier might be a Factory or a CacheValue<V> instance
+            V value = supplier.get();
+            if (value != null) {
+                return value;
+            }
+        }
+        // else no supplier in cache
+        // or a supplier that returned null (could be a cleared CacheValue
+        // or a Factory that wasn't successful in installing the CacheValue)
+
+        // lazily construct a Factory
+        if (factory == null) {
+            factory = new Factory(key, parameter, subKey, valuesMap);
+        }
+
+        if (supplier == null) {
+            supplier = valuesMap.putIfAbsent(subKey, factory);
+            if (supplier == null) {
+                // successfully installed Factory
+                supplier = factory;
+            }
+            // else retry with winning supplier
+        } else {
+            if (valuesMap.replace(subKey, supplier, factory)) {
+                // successfully replaced
+                // cleared CacheEntry / unsuccessful Factory
+                // with our Factory
+                supplier = factory;
+            } else {
+                // retry with current supplier
+                supplier = valuesMap.get(subKey);
+            }
+        }
+    }
+}
+
+private static final class ProxyClassFactory
+    implements BiFunction<ClassLoader, Class<?>[], Class<?>>
+{
+    // 代理类的前缀名$Proxy
+    private static final String proxyClassNamePrefix = "$Proxy";
+
+    // 使用唯一的编号给作为代理类名的一部分，如$Proxy0,$Proxy1等
+    private static final AtomicLong nextUniqueNumber = new AtomicLong();
+
+    @Override
+    public Class<?> apply(ClassLoader loader, Class<?>[] interfaces) {
+
+        Map<Class<?>, Boolean> interfaceSet = new IdentityHashMap<>(interfaces.length);
+        for (Class<?> intf : interfaces) {
+            // 验证指定的类加载器(loader)加载接口所得到的Class对象(interfaceClass)是否与intf对象相同
+            Class<?> interfaceClass = null;
+            try {
+                interfaceClass = Class.forName(intf.getName(), false, loader);
+            } catch (ClassNotFoundException e) {
+            }
+            if (interfaceClass != intf) {
+                throw new IllegalArgumentException(
+                    intf + " is not visible from class loader");
+            }
+            // 验证该Class对象是不是接口
+            if (!interfaceClass.isInterface()) {
+                throw new IllegalArgumentException(
+                    interfaceClass.getName() + " is not an interface");
+            }
+            /*
+             * Verify that this interface is not a duplicate.
+             */
+            if (interfaceSet.put(interfaceClass, Boolean.TRUE) != null) {
+                throw new IllegalArgumentException(
+                    "repeated interface: " + interfaceClass.getName());
+            }
+        }
+
+        //声明代理类所在包中的位置
+        String proxyPkg = null;     // package to define proxy class in
+        int accessFlags = Modifier.PUBLIC | Modifier.FINAL;
+
+       // 验证你传入的接口中是否有非public接口，只要有一个接口是非public的，那么这些接口都必须在同一包中
+        for (Class<?> intf : interfaces) {
+            int flags = intf.getModifiers();
+            if (!Modifier.isPublic(flags)) {
+                accessFlags = Modifier.FINAL;
+                String name = intf.getName();
+                int n = name.lastIndexOf('.');
+                String pkg = ((n == -1) ? "" : name.substring(0, n + 1));
+                if (proxyPkg == null) {
+                    proxyPkg = pkg;
+                } else if (!pkg.equals(proxyPkg)) {
+                    throw new IllegalArgumentException(
+                        "non-public interfaces from different packages");
+                }
+            }
+        }
+
+        if (proxyPkg == null) {
+            // if no non-public proxy interfaces, use com.sun.proxy package
+            // 如果都是public接口，那么生成的代理类就在com.sun.proxy包下
+            proxyPkg = ReflectUtil.PROXY_PACKAGE + ".";
+        }
+
+        /*
+         * Choose a name for the proxy class to generate.
+         */
+        //将当前nextUniqueNumber的值以原子的方式的加1，所以第一次生成代理类的名字为$Proxy0.class
+        long num = nextUniqueNumber.getAndIncrement();
+        //代理类的完全限定名，如com.sun.proxy.$Proxy0.calss
+        String proxyName = proxyPkg + proxyClassNamePrefix + num;
+
+        /*
+         * Generate the specified proxy class.
+         */
+        //生成代理类字节码文件
+        byte[] proxyClassFile = ProxyGenerator.generateProxyClass(
+            proxyName, interfaces, accessFlags);
+        try {
+        // 根据二进制字节码返回相应的Class实例
+            return defineClass0(loader, proxyName,
+                                proxyClassFile, 0, proxyClassFile.length);
+        } catch (ClassFormatError e) {
+            /*
+             * A ClassFormatError here means that (barring bugs in the
+             * proxy class generation code) there was some other
+             * invalid aspect of the arguments supplied to the proxy
+             * class creation (such as virtual machine limitations
+             * exceeded).
+             */
+            throw new IllegalArgumentException(e.toString());
+        }
+    }
+}
+
+public static byte[] generateProxyClass(final String var0, Class<?>[] var1, int var2) {
+    ProxyGenerator var3 = new ProxyGenerator(var0, var1, var2);
+    // 生成代理类字节码文件的真正方法
+    final byte[] var4 = var3.generateClassFile();
+    // 这里根据参数配置，决定是否把生成的字节码（.class文件）保存到本地磁盘
+    // System.getProperties().put("sun.misc.ProxyGenerator.saveGeneratedFiles", "true");
+    if (saveGeneratedFiles) {
+        AccessController.doPrivileged(new PrivilegedAction<Void>() {
+            public Void run() {
+                try {
+                    int var1 = var0.lastIndexOf(46);
+                    Path var2;
+                    if (var1 > 0) {
+                        Path var3 = Paths.get(var0.substring(0, var1).replace('.', File.separatorChar));
+                        Files.createDirectories(var3);
+                        var2 = var3.resolve(var0.substring(var1 + 1, var0.length()) + ".class");
+                    } else {
+                        var2 = Paths.get(var0 + ".class");
+                    }
+
+                    Files.write(var2, var4, new OpenOption[0]);
+                    return null;
+                } catch (IOException var4x) {
+                    throw new InternalError("I/O exception saving generated file: " + var4x);
+                }
+            }
+        });
+    }
+
+    return var4;
+}
+
+private byte[] generateClassFile() {
+    /* addProxyMethod系列方法就是将接口的方法和Object的hashCode,equals,toString方法添加到代理方法容器(proxyMethods),
+       其中方法签名作为key,proxyMethod作为value
+    */
+    this.addProxyMethod(hashCodeMethod, Object.class);
+    this.addProxyMethod(equalsMethod, Object.class);
+    this.addProxyMethod(toStringMethod, Object.class);
+    Class[] var1 = this.interfaces;
+    int var2 = var1.length;
+
+    int var3;
+    Class var4;
+    // 获得所有接口中的所有方法，并将方法添加到代理方法中
+    for(var3 = 0; var3 < var2; ++var3) {
+        var4 = var1[var3];
+        Method[] var5 = var4.getMethods();
+        int var6 = var5.length;
+
+        for(int var7 = 0; var7 < var6; ++var7) {
+            Method var8 = var5[var7];
+            this.addProxyMethod(var8, var4);
+        }
+    }
+
+    Iterator var11 = this.proxyMethods.values().iterator();
+
+    List var12;
+    while(var11.hasNext()) {
+        var12 = (List)var11.next();
+        // 验证具有相同方法签名的的方法的返回值类型是否一致，因为不可能有两个方法名相同,参数相同，而返回值却不同的方法
+        checkReturnTypes(var12);
+    }
+
+    Iterator var15;
+    //写代理类文件步骤
+    try {
+        //1. 生成代理类的构造函数
+        this.methods.add(this.generateConstructor());
+        var11 = this.proxyMethods.values().iterator();
+
+        while(var11.hasNext()) {
+            var12 = (List)var11.next();
+            var15 = var12.iterator();
+
+            while(var15.hasNext()) {
+                ProxyGenerator.ProxyMethod var16 = (ProxyGenerator.ProxyMethod)var15.next();
+                 /* 将代理字段声明为Method，10为ACC_PRIVATE和ACC_STATAIC的与运算，表示该字段的修饰符为private static
+                    所以代理类的字段都是private static Method ...
+                 */
+                this.fields.add(new ProxyGenerator.FieldInfo(var16.methodFieldName, "Ljava/lang/reflect/Method;", 10));
+                 //生成代理类的代理方法
+                this.methods.add(var16.generateMethod());
+            }
+        }
+        //为代理类生成静态代码块，对一些字段进行初始化
+        this.methods.add(this.generateStaticInitializer());
+    } catch (IOException var10) {
+        throw new InternalError("unexpected I/O Exception", var10);
+    }
+
+    if (this.methods.size() > 65535) {
+        throw new IllegalArgumentException("method limit exceeded");
+    } else if (this.fields.size() > 65535) {
+        throw new IllegalArgumentException("field limit exceeded");
+    } else {
+        this.cp.getClass(dotToSlash(this.className));
+        this.cp.getClass("java/lang/reflect/Proxy");
+        var1 = this.interfaces;
+        var2 = var1.length;
+
+        for(var3 = 0; var3 < var2; ++var3) {
+            var4 = var1[var3];
+            this.cp.getClass(dotToSlash(var4.getName()));
+        }
+
+        this.cp.setReadOnly();
+        ByteArrayOutputStream var13 = new ByteArrayOutputStream();
+        DataOutputStream var14 = new DataOutputStream(var13);
+
+        try {
+            var14.writeInt(-889275714);
+            var14.writeShort(0);
+            var14.writeShort(49);
+            this.cp.write(var14);
+            var14.writeShort(this.accessFlags);
+            var14.writeShort(this.cp.getClass(dotToSlash(this.className)));
+            var14.writeShort(this.cp.getClass("java/lang/reflect/Proxy"));
+            var14.writeShort(this.interfaces.length);
+            Class[] var17 = this.interfaces;
+            int var18 = var17.length;
+
+            for(int var19 = 0; var19 < var18; ++var19) {
+                Class var22 = var17[var19];
+                var14.writeShort(this.cp.getClass(dotToSlash(var22.getName())));
+            }
+
+            var14.writeShort(this.fields.size());
+            var15 = this.fields.iterator();
+
+            while(var15.hasNext()) {
+                ProxyGenerator.FieldInfo var20 = (ProxyGenerator.FieldInfo)var15.next();
+                var20.write(var14);
+            }
+
+            var14.writeShort(this.methods.size());
+            var15 = this.methods.iterator();
+
+            while(var15.hasNext()) {
+                ProxyGenerator.MethodInfo var21 = (ProxyGenerator.MethodInfo)var15.next();
+                var21.write(var14);
+            }
+
+            var14.writeShort(0);
+            return var13.toByteArray();
+        } catch (IOException var9) {
+            throw new InternalError("unexpected I/O Exception", var9);
+        }
+    }
+}
+```
+
+##### 基于CGLIB的动态代理
+CGLib动态代理能代理类和接口，但是不能代理final类。
+JDK动态代理和CGLib动态代理都是运行时增强，通过将横切代码植入代理类的方式增强。
+```java
+@Slf4j
+public class TestCglib  {
+    public static void main(String[] args) {
+
+        RealSubjectA subjectA = new RealSubjectA();
+        Enhancer en = new Enhancer();
+        // 定义要代理的对象
+        en.setSuperclass(subjectA.getClass());
+        /*en.setCallback((MethodInterceptor) (o1, method, objects, methodProxy) -> {
+            log.info("-----before-------");
+            methodProxy.invokeSuper(o1, args);
+            log.info("-----after--------");
+            return null;
+
+        });*/
+        en.setCallback(new MethodInterceptor() {
+            @Override
+            public Object intercept(Object o, Method method, Object[] objects, MethodProxy methodProxy) throws Throwable {
+                log.info("-----before-------");
+                Object o1 = methodProxy.invokeSuper(o, args);
+                log.info(o1.toString());
+                log.info("-----after--------");
+                return o1;
+            }
+        });
+        // 生成代理对象
+        RealSubjectA o1 = (RealSubjectA) en.create();
+        String s = o1.doSomething();
+        log.info(s);
+        log.info(o1.doSomething1().toString());
+    }
+}
+/*
+CGLIB debugging enabled, writing to 'C:\class'
+[INFO ] [com.example.demo.weixin.TestCglib$1.intercept(TestCglib.java:32)] -----before-------
+[INFO ] [com.example.demo.weixin.TestCglib$1.intercept(TestCglib.java:34)] RealSubjectA
+[INFO ] [com.example.demo.weixin.TestCglib$1.intercept(TestCglib.java:35)] -----after--------
+[INFO ] [com.example.demo.weixin.TestCglib.main(TestCglib.java:42)] RealSubjectA
+[INFO ] [com.example.demo.weixin.TestCglib$1.intercept(TestCglib.java:32)] -----before-------
+[INFO ] [com.example.demo.weixin.TestCglib$1.intercept(TestCglib.java:34)] doSomething1
+[INFO ] [com.example.demo.weixin.TestCglib$1.intercept(TestCglib.java:35)] -----after--------
+[INFO ] [com.example.demo.weixin.TestCglib.main(TestCglib.java:43)] doSomething1
+*/
+```
+CGLIB生成代理类只需要一个目标类和一个回调函数即增强执行逻辑。
+
+JDK动态代理使用的是反射技术，而CGLIB则使用了FastClass构建方法索引+继承的方式访问目标类的方法。
+
+反编译class文件可以发现代理了Object中的equals, toString,hashCode,clone方法。
+
+##### 类加载器
+java中的类加载器负责加载来自文件系统，网络或者其他来源的类文件。默认使用双亲委派加载，其中有三种默认使用的类加载
+器：Bootstrap类加载器、Extension类加载器和System类加载器（或者叫作Application类加载器），每种类加载器都已经确定从哪个指定目录加载类文件。
+
+* Bootstrap类加载器负责加载rt.jar中的JDK类文件，它是所有类加载器的父加载器。Bootstrap类加载器没有任何父类加载器，如果你调用String.class.getClassLoader()，会返回null，
+任何基于此的代码会抛出NUllPointerException异常。Bootstrap加载器被称为初始类加载器。
+* Extension将加载类的请求先委托给它的父加载器，也就是Bootstrap，如果没有成功加载的话，再从jre/lib/ext目录下或者java.ext.dirs系统属性定义的目录下加载类。
+Extension加载器由sun.misc.Launcher$ExtClassLoader实现。
+* System类加载器（又叫作Application类加载器）了。它负责从classpath环境变量中加载某些应用相关的类，classpath环境变量通常由-classpath或-cp命令行
+选项来定义，或者是JAR中的Manifest的classpath属性。Application类加载器是Extension类加载器的子加载器。通过sun.misc.Launcher$AppClassLoader实现。
+
+mybatis的IO包中封装了classLoader以及读取资源文件的API。
+
+在IO包中提供一个ClassLoader包装器ClassLoaderWrapper，其中包含多个classLoader对象，ClassLoaderWrapper会按照指定的顺序依次检测其中封装的ClassLoader
+对象，并选取其中第一个可用的ClassLoader完成相关功能。
+
+ClassLoaderWrapper主要功能分3类，getResourceAsURL()方法，getResourceAsStream()方法，classForName方法()。
+```java
+public class ClassLoaderWrapper {
+
+  ClassLoader defaultClassLoader;// 应用指定的默认类加载器
+  ClassLoader systemClassLoader;
+
+  ClassLoaderWrapper() {
+    try {
+      systemClassLoader = ClassLoader.getSystemClassLoader();
+    } catch (SecurityException ignored) {
+      // AccessControlException on Google App Engine
+    }
+  }
+
+  /*
+   * Get a resource as a URL using the current class path
+   *  主要功能 1
+   * @param resource - the resource to locate
+   * @return the resource or null
+   */
+  public URL getResourceAsURL(String resource) {
+    return getResourceAsURL(resource, getClassLoaders(null));
+  }
+
+  /*
+   * Get a resource from the classpath, starting with a specific class loader
+   *
+   * @param resource    - the resource to find
+   * @param classLoader - the first classloader to try
+   * @return the stream or null
+   */
+  public URL getResourceAsURL(String resource, ClassLoader classLoader) {
+    return getResourceAsURL(resource, getClassLoaders(classLoader));
+  }
+
+  /*
+   * Get a resource from the classpath
+   * 主要功能 2
+   * @param resource - the resource to find
+   * @return the stream or null
+   */
+  public InputStream getResourceAsStream(String resource) {
+    return getResourceAsStream(resource, getClassLoaders(null));
+  }
+
+  /*
+   * Get a resource from the classpath, starting with a specific class loader
+   *
+   * @param resource    - the resource to find
+   * @param classLoader - the first class loader to try
+   * @return the stream or null
+   */
+  public InputStream getResourceAsStream(String resource, ClassLoader classLoader) {
+    return getResourceAsStream(resource, getClassLoaders(classLoader));
+  }
+
+  /*
+   * Find a class on the classpath (or die trying)
+   * 主要功能 3
+   * @param name - the class to look for
+   * @return - the class
+   * @throws ClassNotFoundException Duh.
+   */
+  public Class<?> classForName(String name) throws ClassNotFoundException {
+    return classForName(name, getClassLoaders(null));
+  }
+
+  /*
+   * Find a class on the classpath, starting with a specific classloader (or die trying)
+   *
+   * @param name        - the class to look for
+   * @param classLoader - the first classloader to try
+   * @return - the class
+   * @throws ClassNotFoundException Duh.
+   */
+  public Class<?> classForName(String name, ClassLoader classLoader) throws ClassNotFoundException {
+    return classForName(name, getClassLoaders(classLoader));
+  }
+
+  /*
+   * Try to get a resource from a group of classloaders
+   *
+   * @param resource    - the resource to get
+   * @param classLoader - the classloaders to examine
+   * @return the resource or null
+   */
+  InputStream getResourceAsStream(String resource, ClassLoader[] classLoader) {
+    for (ClassLoader cl : classLoader) {
+      if (null != cl) {
+
+        // try to find the resource as passed
+        InputStream returnValue = cl.getResourceAsStream(resource);
+
+        // now, some class loaders want this leading "/", so we'll add it and try again if we didn't find the resource
+        if (null == returnValue) {
+          returnValue = cl.getResourceAsStream("/" + resource);
+        }
+
+        if (null != returnValue) {
+          return returnValue;
+        }
+      }
+    }
+    return null;
+  }
+
+  /*
+   * Get a resource as a URL using the current class path
+   *
+   * @param resource    - the resource to locate
+   * @param classLoader - the class loaders to examine
+   * @return the resource or null
+   */
+  URL getResourceAsURL(String resource, ClassLoader[] classLoader) {
+
+    URL url;
+
+    for (ClassLoader cl : classLoader) {// 遍历classloader数组
+
+      if (null != cl) {
+
+        // look for the resource as passed in...
+        url = cl.getResource(resource);
+
+        // ...but some class loaders want this leading "/", so we'll add it
+        // and try again if we didn't find the resource
+        if (null == url) { // 尝试以“/”开头 再次查找
+          url = cl.getResource("/" + resource);
+        }
+
+        // "It's always in the last place I look for it!"
+        // ... because only an idiot would keep looking for it after finding it, so stop looking already.
+        if (null != url) {
+          return url;
+        }
+
+      }
+
+    }
+
+    // didn't find it anywhere.
+    return null;
+
+  }
+
+  /*
+   * Attempt to load a class from a group of classloaders
+   *
+   * @param name        - the class to load
+   * @param classLoader - the group of classloaders to examine
+   * @return the class
+   * @throws ClassNotFoundException - Remember the wisdom of Judge Smails: Well, the world needs ditch diggers, too.
+   */
+  Class<?> classForName(String name, ClassLoader[] classLoader) throws ClassNotFoundException {
+
+    for (ClassLoader cl : classLoader) {
+
+      if (null != cl) {
+
+        try {
+
+          Class<?> c = Class.forName(name, true, cl);
+
+          if (null != c) {
+            return c;
+          }
+
+        } catch (ClassNotFoundException e) {
+          // we'll ignore this until all classloaders fail to locate the class
+        }
+
+      }
+
+    }
+
+    throw new ClassNotFoundException("Cannot find class: " + name);
+
+  }
+  // 指明类加载器的使用顺序
+  ClassLoader[] getClassLoaders(ClassLoader classLoader) {
+    return new ClassLoader[]{
+        classLoader,// 通过参数指定的类加载器
+        defaultClassLoader,// 系统指定的默认加载器
+        Thread.currentThread().getContextClassLoader(),// 当前线程绑定的类加载器
+        getClass().getClassLoader(),// 加载当前类的类加载器
+        systemClassLoader};// systemClassLoader
+  }
+
+}
+```
