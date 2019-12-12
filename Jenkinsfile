@@ -10,6 +10,14 @@ pipeline {
             sh 'mvn clean package spring-boot:repackage -DskipTests'
             sh 'printenv'
          }
+         setps {
+            script {
+               def list = ['A','B']
+               for(int i =0;i<list.size();i++){
+                  echo "Testing the List: ${list[i]} "
+               }
+            }
+         }
       }
    }
    post {
@@ -25,5 +33,9 @@ pipeline {
       failure {
          mail to: '1053946416@qq.com',subject: 'pipeline failed',body: 'pipeline failed body'
       }
+   }
+   options {
+      buildDiscarder(logRotator(numToKeepStr: '3')) // 历史构建记录的数量
+      timeout(time: 30,unit: 'MINUTES') // 30分钟自动终止pipeline
    }
 }
