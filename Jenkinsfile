@@ -3,6 +3,12 @@ pipeline {
    tools {
       maven 'maven3.6.3'
    }
+   triggers {
+      // 1. 5个字段 MINUTE(1小时内的分钟) HOUR(一天内的小时) DOM(一个月的某一天) MONTH(月份) DOW(星期)
+      // cron('0 0 * * * ')
+      // 2. 由上游任务触发
+      upstream(upstreamProjects: 'test1', threshold: hudson.model.Result.SUCCESS)
+   }
    stages {
       stage('Build') {
          steps {
