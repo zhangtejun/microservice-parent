@@ -28,10 +28,9 @@ pipeline {
             steps {
                 script {
                     def list = ['ppos-basics','B']
-                    echo "${project}aa"
-                    echo ${project}
-                     println(list.find { it == ${project} })
-                     if(!list.find(it == ${project})){
+                     echo list.find { it == "${project}" }
+                     println(list.find { it == "${project}" })
+                     if(!list.find(it == "${project}")){
                          echo "project input error : [${project}]"
                          ret = false
                      }else{
