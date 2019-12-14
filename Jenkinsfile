@@ -55,10 +55,8 @@ pipeline {
                 echo 'build amc-common ...........................................'
                 echo "当前路径为: "
                 sh 'pwd'
-                sh "cd ${env.WORKSPACE}/PPOS/amc-common"
+                sh "cd ${env.WORKSPACE}/PPOS/amc-common && mvn clean install -s /var/jenkins_home/setting/settings.xml -Dmaven.test.skip=true"
                 sh 'pwd'
-                sh 'mvn clean install -s /var/jenkins_home/setting/settings.xml -Dmaven.test.skip=true '
-
             }
         }
         stage('Build api-repository starting') {
@@ -78,9 +76,8 @@ pipeline {
 
                 echo "当前路径为: "
                 sh 'pwd'
-                sh "cd ${env.WORKSPACE}/PPOS/api-repository"
+                sh "cd ${env.WORKSPACE}/PPOS/api-repository && mvn clean install -s /var/jenkins_home/setting/settings.xml -Dmaven.test.skip=true"
                 sh 'pwd'
-                sh 'mvn clean install -s /var/jenkins_home/setting/settings.xml -Dmaven.test.skip=true '
             }
         }
 
