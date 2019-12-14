@@ -41,7 +41,9 @@ pipeline {
         }
         stage('Build starting amc-common') {
             when {
-                params name: 'choice', value: 'Y'
+                allOf {
+                expression({return params.choice == 'Y'});ret: true
+                }
             }
             steps {
                 echo "${ret}"
@@ -51,6 +53,11 @@ pipeline {
             }
         }
         stage('Build stage 2') {
+            when {
+                allOf {
+                expression({return params.choice == 'Y'});ret: true
+                }
+            }
             steps {
                 script {
                     def list = ['A','B']
@@ -59,21 +66,6 @@ pipeline {
                     }
                 }
             }
-        }
-        stage('TestParam') {
-            input {
-                message "Should we continue?"
-                ok "Yes, we should."
-                submitter "alice,bob"
-                parameters {
-                    string(name: 'PERSON', defaultValue: 'Mr Jenkins', description: 'Who should I say hello to?')
-                }
-            }
-            steps {
-                echo 'TestParam starting ....'
-                echo "Hello, ${PERSON}, nice to meet you."
-            }
-
         }
         stage('TestParam2') {
             steps {
