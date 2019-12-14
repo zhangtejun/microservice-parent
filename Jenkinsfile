@@ -27,10 +27,8 @@ pipeline {
         stage('Build starting  check parameters') {
             steps {
                 script {
-                    echo "${env}"
-
-                    echo "${printenv}"
-                    echo "${environment}"
+                    echo "${env.WORKSPACE}"
+                    sh 'printenv.JAVA_VERSION'
                     def list = ['ppos-basics','B']
                      println(list.contains("${project}"))
                      if(!(list.find { it == "${project}" } == "${project}")){
