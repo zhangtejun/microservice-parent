@@ -27,8 +27,10 @@ pipeline {
         stage('Build starting  check parameters') {
             steps {
                 script {
-                    echo(environmen)
+                    echo(env)
+                    
                     echo(printenv)
+                    echo(environmen)
                     def list = ['ppos-basics','B']
                      println(list.contains("${project}"))
                      if(!(list.find { it == "${project}" } == "${project}")){
