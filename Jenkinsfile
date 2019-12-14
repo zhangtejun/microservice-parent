@@ -28,7 +28,7 @@ pipeline {
             steps {
                 script {
                     def list = ['A','B']
-                     if(!list.find(it == ${project}){
+                     if(!list.find(it == ${project})){
                          echo "project input error : [${project}]"
                          ret = false
                      }else{
