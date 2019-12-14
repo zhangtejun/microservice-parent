@@ -16,7 +16,7 @@ pipeline {
                 sh 'mvn clean package spring-boot:repackage -DskipTests'
                 sh 'printenv'
             }
-            setps {
+            steps {
                 script {
                     def list = ['A','B']
                     for(int i =0;i<list.size();i++){
