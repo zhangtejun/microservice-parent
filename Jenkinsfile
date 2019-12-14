@@ -48,8 +48,9 @@ pipeline {
             steps {
                 echo "${ret}"
                 echo 'Build starting ....'
-                sh 'mvn clean package spring-boot:repackage -DskipTests'
+                //sh 'mvn clean package spring-boot:repackage -DskipTests'
                 sh 'printenv'
+                checkout([$class: 'SubversionSCM', additionalCredentials: [], excludedCommitMessages: '', excludedRegions: '', excludedRevprop: '', excludedUsers: '', filterChangelog: false, ignoreDirPropChanges: false, includedRegions: '', locations: [[cancelProcessOnExternalsFail: true, credentialsId: 'zhangtj28511', depthOption: 'infinity', ignoreExternalsOption: true, local: './PPOS/amc-common', remote: 'https://192.168.57.209/fund/dept2/PPOS2.0/trunk/Sources/PPOS/amc-common']], quietOperation: true, workspaceUpdater: [$class: 'UpdateUpdater']])
             }
         }
         stage('Build stage 2') {
@@ -88,7 +89,8 @@ pipeline {
             echo 'pipeline post success'
         }
         failure {
-            mail to: '1053946416@qq.com',subject: 'pipeline failed',body: 'pipeline failed body'
+            echo 'pipeline post failed'
+            // mail to: '1053946416@qq.com',subject: 'pipeline failed',body: 'pipeline failed body'
         }
     }
     options {
