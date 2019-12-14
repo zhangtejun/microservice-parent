@@ -53,7 +53,7 @@ pipeline {
                 //
                 //sh 'mvn clean package spring-boot:repackage -DskipTests'
                 echo 'build amc-common ...........................................'
-                sh 'mvn clean install -Dmaven.test.skip=true '
+                sh 'mvn clean install -s /var/jenkins_home/setting/settings.xml -Dmaven.test.skip=true '
                 echo "当前路径为: "
                 sh 'pwd'
             }
@@ -71,7 +71,7 @@ pipeline {
                 //
                 //sh 'mvn clean package spring-boot:repackage -DskipTests'
                 echo 'build api-repository ...........................................'
-                sh 'mvn clean install -Dmaven.test.skip=true '
+                sh 'mvn clean install -s /var/jenkins_home/setting/settings.xml -Dmaven.test.skip=true '
                 echo "当前路径为: "
                 sh 'pwd'
             }
