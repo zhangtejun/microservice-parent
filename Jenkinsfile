@@ -1,3 +1,4 @@
+def ret
 pipeline {
     agent any
     tools {
@@ -27,18 +28,23 @@ pipeline {
             steps {
                 script {
                     def list = ['A','B']
-                    if(!list.find(it == ${project}){
-                        echo "project input error : [${project}]"
-                        throw
-                    }else{
-                        echo "will be build project : [${project}]"
-                    }
+                     if(!list.find(it == ${project}){
+                         echo "project input error : [${project}]"
+                         ret = false
+                     }else{
+                         echo "will be build project : [${project}]"
+                     }
+                     ret = true
                 }
 
             }
         }
-        stage('Build stage 1') {
+        stage('Build starting amc-common') {
+            when {
+                params name: 'choice', value: 'Y'
+            }
             steps {
+                echo "${ret}"
                 echo 'Build starting ....'
                 sh 'mvn clean package spring-boot:repackage -DskipTests'
                 sh 'printenv'
