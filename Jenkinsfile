@@ -19,10 +19,23 @@ pipeline {
         */
         //
         choice(name: 'folder', choices: ['PPOS', 'AMOS'], description: '项目位于PPOS/AMOS?')
-        choice(name: '先构建amc and api', choices: ['Y', 'N'], description: '是否需要先构建amc-common和api-repository? 默认Y(需要先构建)')
+        choice(name: 'choice', choices: ['Y', 'N'], description: '是否需要先构建amc-common和api-repository? 默认Y(需要先构建)')
         string(name: 'project', defaultValue: 'ppos-basics', description: '需要构建的项目名?')
     }
     stages {
+        stage('Build starting  check parameters') {
+            steps {
+                script {
+                    def list = ['A','B']
+                    if(!list.find(it == ${project}){
+                        echo "project input error : [${project}]"
+                    }else{
+                        echo "will be build project : [${project}]"
+                    }
+                }
+
+            }
+        }
         stage('Build stage 1') {
             steps {
                 echo 'Build starting ....'
