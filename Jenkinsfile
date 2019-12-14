@@ -29,6 +29,7 @@ pipeline {
                     def list = ['A','B']
                     if(!list.find(it == ${project}){
                         echo "project input error : [${project}]"
+                        throw
                     }else{
                         echo "will be build project : [${project}]"
                     }
