@@ -75,7 +75,7 @@ pipeline {
             echo "当前路径为: "
             sh 'pwd'
         }
-        
+
         stage('TestParam2') {
             steps {
                 echo "Hello ${params.PERSON}"
