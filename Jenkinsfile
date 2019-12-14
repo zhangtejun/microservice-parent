@@ -55,7 +55,7 @@ pipeline {
         stage('Build stage 2') {
             when {
                 allOf {
-                expression({return params.choice == 'Y'});ret: true
+                expression({return params.choice == 'Y'}); ret true
                 }
             }
             steps {
