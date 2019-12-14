@@ -52,13 +52,12 @@ pipeline {
                 sh 'printenv'
                 checkout([$class: 'SubversionSCM', additionalCredentials: [], excludedCommitMessages: '', excludedRegions: '', excludedRevprop: '', excludedUsers: '', filterChangelog: false, ignoreDirPropChanges: false, includedRegions: '', locations: [[cancelProcessOnExternalsFail: true, credentialsId: 'zhangtj28511', depthOption: 'infinity', ignoreExternalsOption: true, local: './PPOS/amc-common', remote: 'https://192.168.57.209/fund/dept2/PPOS2.0/trunk/Sources/PPOS/amc-common']], quietOperation: true, workspaceUpdater: [$class: 'UpdateUpdater']])
                 //
-                //sh 'mvn clean package spring-boot:repackage -DskipTests'
                 echo 'build amc-common ...........................................'
                 echo "当前路径为: "
                 sh 'pwd'
                 sh "cd ${env.WORKSPACE}/PPOS/amc-common"
                 sh 'pwd'
-                 // sh 'mvn clean install -s /var/jenkins_home/setting/settings.xml -Dmaven.test.skip=true '
+                sh 'mvn clean install -s /var/jenkins_home/setting/settings.xml -Dmaven.test.skip=true '
 
             }
         }
@@ -81,7 +80,7 @@ pipeline {
                 sh 'pwd'
                 sh "cd ${env.WORKSPACE}/PPOS/api-repository"
                 sh 'pwd'
-                // sh 'mvn clean install -s /var/jenkins_home/setting/settings.xml -Dmaven.test.skip=true '
+                sh 'mvn clean install -s /var/jenkins_home/setting/settings.xml -Dmaven.test.skip=true '
             }
         }
 
