@@ -34,41 +34,48 @@ pipeline {
                          ret = false
                      }else{
                          echo "will be build project : [${project}]"
+                         ret = true
                      }
-                     ret = true
                 }
 
             }
         }
-        stage('Build starting amc-common') {
+        stage('Build amc-common starting') {
             when {
                 allOf {
                 expression({return params.choice == 'Y'}); equals expected: true, actual: ret
                 }
             }
             steps {
-                echo "${ret}"
-                echo 'Build starting ....'
-                //sh 'mvn clean package spring-boot:repackage -DskipTests'
+                echo 'checkout amc-common ...........................................'
                 sh 'printenv'
                 checkout([$class: 'SubversionSCM', additionalCredentials: [], excludedCommitMessages: '', excludedRegions: '', excludedRevprop: '', excludedUsers: '', filterChangelog: false, ignoreDirPropChanges: false, includedRegions: '', locations: [[cancelProcessOnExternalsFail: true, credentialsId: 'zhangtj28511', depthOption: 'infinity', ignoreExternalsOption: true, local: './PPOS/amc-common', remote: 'https://192.168.57.209/fund/dept2/PPOS2.0/trunk/Sources/PPOS/amc-common']], quietOperation: true, workspaceUpdater: [$class: 'UpdateUpdater']])
+                //
+                //sh 'mvn clean package spring-boot:repackage -DskipTests'
+                echo 'build amc-common ...........................................'
+                sh 'mvn clean install -Dmaven.test.skip=true '
+                echo "当前路径为: "
+                sh 'pwd'
             }
         }
-        stage('Build stage 2') {
+        stage('Build api-repository starting') {
             when {
                 allOf {
                 expression({return params.choice == 'Y'}); equals expected: true, actual: ret
                 }
             }
-            steps {
-                script {
-                    def list = ['A','B']
-                    for(int i =0;i<list.size();i++){
-                        echo "Testing the List: ${list[i]} "
-                    }
-                }
-            }
+            echo "当前路径为: "
+            sh 'pwd'
+            echo 'checkout api-repository ...........................................'
+            sh 'printenv'
+            checkout([$class: 'SubversionSCM', additionalCredentials: [], excludedCommitMessages: '', excludedRegions: '', excludedRevprop: '', excludedUsers: '', filterChangelog: false, ignoreDirPropChanges: false, includedRegions: '', locations: [[cancelProcessOnExternalsFail: true, credentialsId: 'zhangtj28511', depthOption: 'infinity', ignoreExternalsOption: true, local: './PPOS/api-repository', remote: 'https://192.168.57.209/fund/dept2/PPOS2.0/trunk/Sources/PPOS/api-repository']], quietOperation: true, workspaceUpdater: [$class: 'UpdateUpdater']])
+            // sh 'mvn clean package spring-boot:repackage -DskipTests'
+            echo 'build api-repository ...........................................'
+            sh 'mvn clean install -Dmaven.test.skip=true'
+            echo "当前路径为: "
+            sh 'pwd'
         }
+        
         stage('TestParam2') {
             steps {
                 echo "Hello ${params.PERSON}"
