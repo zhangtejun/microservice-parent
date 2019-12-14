@@ -10,12 +10,14 @@ pipeline {
         upstream(upstreamProjects: 'test1', threshold: hudson.model.Result.SUCCESS)
     }
     stages {
-        stage('Build') {
+        stage('Build stage 1') {
             steps {
                 echo 'Build starting ....'
                 sh 'mvn clean package spring-boot:repackage -DskipTests'
                 sh 'printenv'
             }
+        }
+        stage('Build stage 2') {
             steps {
                 script {
                     def list = ['A','B']
