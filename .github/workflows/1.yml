@@ -7,7 +7,7 @@ jobs:
       - name: Pull and save image
         run: |
           docker pull mpromonet/webrtc-streamer:master-amd64
-          docker save mpromonet/webrtc-streamer -o webrtc-streamer.tar
+          docker save mpromonet/webrtc-streamer -o webrtc-streamera64.tar
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
