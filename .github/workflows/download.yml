@@ -6,10 +6,10 @@ jobs:
     steps:
       - name: Pull and save image
         run: |
-          docker pull nginx:latest
-          docker save nginx:latest -o nginx.tar
+          docker pull mpromonet/webrtc-streamer
+          docker save mpromonet/webrtc-streamer -o webrtc-streamer.tar
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nginx-image
-          path: nginx.tar
+          name: webrtc-streamer-image
+          path: webrtc-streamer.tar
