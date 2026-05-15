@@ -1,0 +1,86 @@
+name: Package depot_tools
+
+on:
+  workflow_dispatch:  # 手动触发
+    inputs:
+      branch:
+        description: '分支/标签 (main, main, 或具体commit)'
+        required: true
+        default: 'main'
+      compression:
+        description: '压缩格式 (tar.gz, tar.xz, zip)'
+        required: true
+        default: 'tar.gz'
+
+jobs:
+  clone-and-package:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Check disk space before
+        run: df -h
+      
+      - name: Clone depot_tools
+        run: |
+          echo "开始克隆 depot_tools..."
+          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
+          cd depot_tools
+          echo "当前分支/提交:"
+          git log -1 --oneline
+          echo "仓库大小:"
+          du -sh .
+      
+      - name: 切换到指定分支/提交
+        if: github.event.inputs.branch != 'main'
+        run: |
+          cd depot_tools
+          git checkout ${{ github.event.inputs.branch }}
+          echo "已切换到: ${{ github.event.inputs.branch }}"
+      
+      - name: 清理不必要的文件（可选，减小体积）
+        run: |
+          cd depot_tools
+          echo "清理前大小:"
+          du -sh .
+          # 删除 .git 目录（如果不需要版本历史）
+          rm -rf .git
+          # 删除测试和文档（可根据需要调整）
+          rm -rf tests/ docs/ 
+          echo "清理后大小:"
+          du -sh .
+      
+      - name: 打包 depot_tools
+        run: |
+          PACKAGE_NAME="depot_tools-$(date +%Y%m%d-%H%M%S)"
+          
+          case "${{ github.event.inputs.compression }}" in
+            "tar.gz")
+              tar -czf "${PACKAGE_NAME}.tar.gz" depot_tools/
+              echo "PACKAGE_FILE=${PACKAGE_NAME}.tar.gz" >> $GITHUB_ENV
+              ;;
+            "tar.xz")
+              tar -cJf "${PACKAGE_NAME}.tar.xz" depot_tools/
+              echo "PACKAGE_FILE=${PACKAGE_NAME}.tar.xz" >> $GITHUB_ENV
+              ;;
+            "zip")
+              zip -r "${PACKAGE_NAME}.zip" depot_tools/
+              echo "PACKAGE_FILE=${PACKAGE_NAME}.zip" >> $GITHUB_ENV
+              ;;
+          esac
+          
+          echo "打包完成: ${PACKAGE_FILE}"
+          ls -lh ${PACKAGE_FILE}
+      
+      - name: 上传打包文件
+        uses: actions/upload-artifact@v4
+        with:
+          name: depot_tools-package
+          path: ${{ env.PACKAGE_FILE }}
+          retention-days: 7  # 保留7天
+      
+      - name: 显示文件信息
+        run: |
+          echo "=== 打包文件信息 ==="
+          ls -lh ${{ env.PACKAGE_FILE }}
+          echo "MD5:"
+          md5sum ${{ env.PACKAGE_FILE }}
